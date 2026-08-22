@@ -5,6 +5,13 @@ The one wrinkle: a ``HandDealt`` event records the *result* of a deal, not an RN
 survive rule changes to the shuffle itself), but ``new_game``/``apply_move`` both deal by calling
 ``rng.shuffle()``. ``_ReplayRandom`` below is a ``Random`` whose ``shuffle`` deterministically
 replays the recorded deals instead of randomizing, so the real dealing code runs unmodified.
+
+**This is a contract with the engine's dealer, and it is not enforceable by types.** Replay is
+correct only while :func:`t42.engine.game._deal_hand` calls ``rng.shuffle`` **exactly once per
+hand** and then slices the shuffled deck in ``Seat`` order - the shape :func:`_deal_order` writes
+the recorded deal back into. A dealer that shuffled twice, drew tile by tile, or dealt in a
+different seat order would not fail here; it would silently replay a *different* game. Anything
+that changes how dealing works has to change ``_deal_order`` with it. See DESIGN.md §11.1.
 """
 
 from __future__ import annotations

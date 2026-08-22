@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from mypy_boto3_dynamodb.service_resource import Table
 
 from ._helpers import Client
 
@@ -143,6 +144,33 @@ def test_editing_a_set_after_the_fact_does_not_change_games_created_from_it(alic
     )
 
     assert alice.view(game_id)["house_rules"]["marks_to_win"] == 7
+
+
+def test_a_rule_set_reports_the_game_it_is_for(alice: Client) -> None:
+    created = alice.post("/players/me/rule-sets", {"name": "x", "house_rules": {}}).json()
+
+    assert created["kind"] == "texas42"
+    assert alice.get(f"/players/me/rule-sets/{created['rule_set_id']}").json()["kind"] == "texas42"
+
+
+def test_a_rule_set_for_another_game_is_refused_at_game_creation(
+    alice: Client, table: Table
+) -> None:
+    """With one registered game this cannot happen through the API, so the item is doctored
+    directly. The check still has to exist: it is the only place a stored rule set meets a table
+    (DESIGN.md §11)."""
+    created = alice.post("/players/me/rule-sets", {"name": "x", "house_rules": {}}).json()
+    table.update_item(
+        Key={"PK": f"PLAYER#{alice.player_id}", "SK": f"RULESET#{created['rule_set_id']}"},
+        UpdateExpression="SET #k = :spades",
+        ExpressionAttributeNames={"#k": "kind"},
+        ExpressionAttributeValues={":spades": "spades"},
+    )
+
+    response = alice.post("/games", {"seat": 0, "rule_set_id": created["rule_set_id"]})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
 
 
 def test_a_foreign_rule_set_id_at_game_creation_is_404(alice: Client) -> None:

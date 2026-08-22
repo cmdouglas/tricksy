@@ -247,13 +247,13 @@ def test_duplicate_record_sends_nothing_second_time(table: Table) -> None:
     assert len(sender.sent) == 1
 
 
-def test_game_over_reads_final_marks_from_meta(table: Table) -> None:
+def test_game_over_reads_final_scores_from_meta(table: Table) -> None:
     player_id = _player_with_contact(table, "alice")
     table.put_item(
         Item={
             "PK": "GAME#g1",
             "SK": "META",
-            "marks": {"north_south": 7, "east_west": 3},
+            "scores": {"north_south": 7, "east_west": 3},
         }
     )
     record = _game_record(
@@ -271,7 +271,9 @@ def test_game_over_reads_final_marks_from_meta(table: Table) -> None:
     assert "3" in sender.sent[0].body
 
 
-def test_game_over_defaults_marks_when_meta_missing(table: Table) -> None:
+def test_game_over_still_sends_when_meta_has_no_scores(table: Table) -> None:
+    """A degraded email beats a dropped one: `_claim` has already succeeded by the time the scores
+    are read, so this transition will never be retried."""
     player_id = _player_with_contact(table, "alice")
     record = _game_record(
         player_id,
@@ -284,7 +286,30 @@ def test_game_over_defaults_marks_when_meta_missing(table: Table) -> None:
     send_notifications(table, sender, [record])
 
     assert len(sender.sent) == 1
-    assert "0" in sender.sent[0].body
+    assert "g1" in sender.sent[0].body
+
+
+def test_game_over_renders_whatever_score_labels_meta_carries(table: Table) -> None:
+    """The handler names no scoring side of its own - a game that scores per player rather than
+    per partnership needs no change here (DESIGN.md §11)."""
+    player_id = _player_with_contact(table, "alice")
+    table.put_item(
+        Item={"PK": "GAME#g1", "SK": "META", "scores": {"alice": 12, "bob": 4, "carol": 9}}
+    )
+    record = _game_record(
+        player_id,
+        "g1",
+        old={"is_my_turn": False, "status": "ACTIVE", "version": 9},
+        new={"is_my_turn": False, "status": "COMPLETE", "version": 10},
+    )
+    sender = FakeSender()
+
+    send_notifications(table, sender, [record])
+
+    body = sender.sent[0].body
+    assert "Alice 12" in body
+    assert "Bob 4" in body
+    assert "Carol 9" in body
 
 
 def test_invite_sends_with_invited_by(table: Table) -> None:

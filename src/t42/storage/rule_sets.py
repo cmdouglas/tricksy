@@ -39,6 +39,7 @@ from typing import Any, Final
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
+from t42.engine import GAME_KIND
 from t42.engine.contracts import validate_house_rules
 from t42.engine.house_rules import HouseRules
 from t42.engine.state import PlayerId
@@ -64,10 +65,16 @@ def _rule_set_sk(rule_set_id: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class RuleSet:
-    """One saved rule set."""
+    """One saved rule set.
+
+    ``kind`` says which game's rules these are, so a set can never be applied to a table of a
+    different game - the check lives in the API's game-creation handler, where both are in scope
+    (DESIGN.md §11).
+    """
 
     rule_set_id: str
     name: str
+    kind: str
     rules: HouseRules
     created_at: str
 
@@ -77,6 +84,7 @@ def _rule_set_from_item(item: Mapping[str, Any]) -> RuleSet:
     return RuleSet(
         rule_set_id=as_text(normalized["rule_set_id"]),
         name=as_text(normalized["name"]),
+        kind=as_text(normalized.get("kind", GAME_KIND)),
         rules=decode_house_rules(normalized["rules"]),
         created_at=as_text(normalized["created_at"]),
     )
@@ -104,12 +112,15 @@ def create_rule_set(
             "SK": _rule_set_sk(rule_set_id),
             "rule_set_id": rule_set_id,
             "name": name,
+            "kind": GAME_KIND,
             "rules": encode_house_rules(rules),
             "created_at": timestamp,
         },
         ConditionExpression="attribute_not_exists(SK)",
     )
-    return RuleSet(rule_set_id=rule_set_id, name=name, rules=rules, created_at=timestamp)
+    return RuleSet(
+        rule_set_id=rule_set_id, name=name, kind=GAME_KIND, rules=rules, created_at=timestamp
+    )
 
 
 def get_rule_set(table: Table, player_id: PlayerId, rule_set_id: str) -> RuleSet:

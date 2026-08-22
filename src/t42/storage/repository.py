@@ -23,6 +23,7 @@ from typing import Any, cast
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
+from t42.engine import GAME_KIND
 from t42.engine.events import Event
 from t42.engine.game import new_game
 from t42.engine.house_rules import HouseRules
@@ -75,10 +76,15 @@ class GameStatus(StrEnum):
 class StoredGame:
     """What a read returns: the decoded state plus the ``version`` ``append`` must be given back
     to write the next event. ``version`` lives here, not on ``GameState`` - optimistic-concurrency
-    bookkeeping is a storage concern, not a rules concern (invariant 1)."""
+    bookkeeping is a storage concern, not a rules concern (invariant 1).
+
+    ``kind`` says which engine produced ``state``. It is carried on the ``STATE`` item itself, not
+    only on ``META``, so a read that decodes state never has to fetch a second item to know what it
+    is holding (DESIGN.md §11)."""
 
     state: GameState
     version: int
+    kind: str = GAME_KIND
 
 
 def start_game(
@@ -146,6 +152,7 @@ def start_game(
                 "Item": {
                     "PK": _game_pk(game_id),
                     "SK": "STATE",
+                    "kind": GAME_KIND,
                     "version": 1,
                     "state": encode_game_state(state),
                 },
@@ -180,13 +187,21 @@ def start_game(
 
 
 def get_state(table: Table, game_id: GameId) -> StoredGame:
-    """Reads the materialized ``STATE`` item. Raises ``GameNotFound`` if none exists."""
+    """Reads the materialized ``STATE`` item. Raises ``GameNotFound`` if none exists.
+
+    ``kind`` is read with a default rather than required, so an item written before it existed
+    still decodes - a missing one can only mean the single game there was.
+    """
     response = table.get_item(Key={"PK": _game_pk(game_id), "SK": "STATE"})
     item = response.get("Item")
     if item is None:
         raise GameNotFound(game_id)
     normalized = from_dynamo(item)
-    return StoredGame(state=decode_game_state(normalized["state"]), version=normalized["version"])
+    return StoredGame(
+        state=decode_game_state(normalized["state"]),
+        version=normalized["version"],
+        kind=str(normalized.get("kind", GAME_KIND)),
+    )
 
 
 def find_request(table: Table, game_id: GameId, request_id: str) -> int | None:
@@ -221,7 +236,7 @@ def append(
     on. Also updates ``META.last_activity_at`` (DESIGN.md §9) and every ``PLAYER#`` item's turn
     status and ``version`` - the same ``new_version`` written to ``STATE``, which is what lets the
     notification handler (ROADMAP.md 4.5) dedupe a redelivered stream record without a separate
-    counter. On the move that ends the game, ``META`` also gains the final ``marks`` map, so that
+    counter. On the move that ends the game, ``META`` also gains the final ``scores`` map, so that
     handler can render a game-over email without ever reading ``STATE``. Raises
     ``VersionConflict`` if the transaction is cancelled; returns the new version on success.
 
@@ -275,11 +290,13 @@ def append(
     if game_over:
         # Denormalized so the notification handler (ROADMAP.md 4.5) can render a game-over email
         # from META alone, the one item it's allowed to read - it never touches STATE.
-        meta_expression += ", marks = :marks"
-        meta_values[":marks"] = {
-            "north_south": new_state.marks.get(Team.NORTH_SOUTH, 0),
-            "east_west": new_state.marks.get(Team.EAST_WEST, 0),
-        }
+        #
+        # Written as an open ``{label: score}`` map keyed on the scoring side's own name, not as a
+        # fixed pair of keys, so the handler that reads it needs no notion of partnerships - which
+        # is what keeps ``t42.notifications`` free of any one game's scoring shape (DESIGN.md §11).
+        # For 42 the labels are ``north_south``/``east_west``, exactly as before.
+        meta_expression += ", scores = :scores"
+        meta_values[":scores"] = {team.name.lower(): new_state.marks.get(team, 0) for team in Team}
     transact_items.append(
         {
             "Update": {

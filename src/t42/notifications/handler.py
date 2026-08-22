@@ -152,20 +152,21 @@ def _claim(table: Table, notification: Notification) -> bool:
         raise
 
 
-def _read_marks(table: Table, game_id: str) -> dict[str, int]:
+def _read_scores(table: Table, game_id: str) -> dict[str, int]:
     """Reads META directly - a raw single-item read, not a t42.storage.repository import - since
-    this is the one item the notifier is allowed to enrich from (DESIGN.md §8). Defaults to zero
-    marks rather than raising: by the time this runs, `_claim` has already succeeded, so this
+    this is the one item the notifier is allowed to enrich from (DESIGN.md §8). Defaults to an
+    empty map rather than raising: by the time this runs, `_claim` has already succeeded, so this
     transition will never be retried, and a degraded email beats a silently dropped one.
+
+    Returns whatever ``{label: score}`` pairs the writer put there, without naming any of them.
+    That is deliberate and is what keeps this package free of any one game's scoring shape: for
+    42 the labels happen to be ``north_south``/``east_west``, and nothing here knows that.
     """
     item = table.get_item(Key={"PK": f"GAME#{game_id}", "SK": "META"}).get("Item")
-    marks = item.get("marks") if item is not None else None
-    if not isinstance(marks, dict):
-        return {"north_south": 0, "east_west": 0}
-    return {
-        "north_south": int(marks.get("north_south", 0)),
-        "east_west": int(marks.get("east_west", 0)),
-    }
+    scores = item.get("scores") if item is not None else None
+    if not isinstance(scores, dict):
+        return {}
+    return {str(label): int(score) for label, score in scores.items()}
 
 
 def _render(table: Table, notification: Notification, recipient_username: str) -> tuple[str, str]:
@@ -176,7 +177,7 @@ def _render(table: Table, notification: Notification, recipient_username: str) -
     if notification.kind == "your_turn":
         return render_your_turn(data)
     if notification.kind == "game_over":
-        data["marks"] = _read_marks(table, notification.game_id)
+        data["scores"] = _read_scores(table, notification.game_id)
         return render_game_over(data)
     data["invited_by"] = notification.invited_by
     return render_invite(data)

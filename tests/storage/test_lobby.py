@@ -214,7 +214,7 @@ def test_list_games_for_player_flags_whose_turn_it_is(table: Table) -> None:
     for seat, player_id in {Seat.NORTH: "north", **_OTHERS}.items():
         (summary,) = list_games_for_player(table, player_id)
         assert summary.game_id == "g1"
-        assert summary.seat is seat
+        assert summary.seat == seat
         assert summary.status is GameStatus.ACTIVE
         assert summary.is_my_turn == (seat is to_act)
 

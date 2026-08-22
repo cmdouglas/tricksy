@@ -6,7 +6,7 @@ legal, the repository says whether the write won its race, and ``project`` says 
 may see. Nothing in this module reimplements any of that, and no handler reaches into
 ``GameState`` to build a response.
 
-``_submit`` is the whole of it for the three move endpoints, and is worth reading first.
+``_submit`` is the whole of the move endpoint, and is worth reading first.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import FastAPI, status
 from mypy_boto3_dynamodb.service_resource import Table
 
+from t42.engine import GAME_KIND
 from t42.engine.errors import RulesError
 from t42.engine.game import apply_move
 from t42.engine.house_rules import HouseRules
@@ -81,12 +82,10 @@ from t42.storage.rule_sets import (
 from .deps import BearerToken, CurrentPlayer, EmailSenderDep, IdempotencyKey, TableDep
 from .errors import install_error_handlers, invalid_request, not_a_player, not_started
 from .schemas import (
-    AuctionRequest,
     ContactChannelModel,
     ContactListResponse,
     ContactResponse,
     CreateGameRequest,
-    DeclareContractRequest,
     DeviceResponse,
     GameInvitesResponse,
     GameListResponse,
@@ -97,10 +96,10 @@ from .schemas import (
     InviteRequest,
     InviteResponse,
     JoinGameRequest,
+    MoveRequest,
     OpenGamesResponse,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
-    PlayDominoRequest,
     PlayerResponse,
     RegisterRequest,
     RuleSetListResponse,
@@ -405,7 +404,7 @@ def create_invite(
     invitee_id = player_for_username(table, body.username)
     seat = lobby.seat_of(invitee_id)
     if seat is not None:
-        raise AlreadySeated(game_id, seat.value)
+        raise AlreadySeated(game_id, seat)
     inviter_seat = lobby.seat_of(player_id)
     assert inviter_seat is not None  # _require_seat already proved this
     invite_player(
@@ -464,37 +463,21 @@ def my_invites(table: TableDep, player_id: CurrentPlayer) -> InviteListResponse:
 # ---------------------------------------------------------------------------------------- moves
 
 
-@app.post("/games/{game_id}/bid")
-def place_bid(
+@app.post("/games/{game_id}/moves")
+def submit_move(
     table: TableDep,
     player_id: CurrentPlayer,
     game_id: GameId,
-    body: AuctionRequest,
+    body: MoveRequest,
     request_id: IdempotencyKey,
 ) -> GameResponse:
-    """A bid, a pass, or the partner's answer to a pending plunge - discriminated on ``kind``."""
-    return _submit(table, game_id, player_id, body.to_move(player_id), request_id)
+    """Any move: a bid, a pass, a plunge answer, a declaration or a play - discriminated on
+    ``kind`` (DESIGN.md §6).
 
-
-@app.post("/games/{game_id}/contract")
-def declare_contract(
-    table: TableDep,
-    player_id: CurrentPlayer,
-    game_id: GameId,
-    body: DeclareContractRequest,
-    request_id: IdempotencyKey,
-) -> GameResponse:
-    return _submit(table, game_id, player_id, body.to_move(player_id), request_id)
-
-
-@app.post("/games/{game_id}/play")
-def play_domino(
-    table: TableDep,
-    player_id: CurrentPlayer,
-    game_id: GameId,
-    body: PlayDominoRequest,
-    request_id: IdempotencyKey,
-) -> GameResponse:
+    One endpoint for all of them because ``_submit`` never inspects the move, so a per-phase URL
+    said nothing the body did not. The ``kind`` values match the ones ``legal_moves`` reports in the
+    projected view, so a client can post back what the server just offered it.
+    """
     return _submit(table, game_id, player_id, body.to_move(player_id), request_id)
 
 
@@ -508,7 +491,7 @@ def _submit(
     move: Move,
     request_id: str | None,
 ) -> GameResponse:
-    """Apply one move and persist it. The single write path behind all three move endpoints.
+    """Apply one move and persist it. The single write path behind every move.
 
     Read the current state, let the engine accept or reject the move, turn the accepted move into
     events, and write them conditioned on the version we read. If somebody else wrote in between,
@@ -563,11 +546,20 @@ def _resolve_house_rules(table: Table, player_id: PlayerId, body: CreateGameRequ
     ``model_fields_set`` is how "``house_rules`` was sent" is told apart from "``house_rules``
     defaulted": ``HouseRulesRequest`` has a ``default_factory``, so an absent field and an
     explicitly-sent default value are otherwise indistinguishable on the model itself.
+
+    A saved set's ``kind`` must match the game being created. With one registered game that check
+    cannot fail, which is precisely why it belongs here now rather than in a comment: this is the
+    only place a stored rule set meets a table, so it is the only place the invariant can live.
     """
     if body.rule_set_id is not None:
         if "house_rules" in body.model_fields_set:
             raise invalid_request("supply either house_rules or rule_set_id, not both")
-        return get_rule_set(table, player_id, body.rule_set_id).rules
+        rule_set = get_rule_set(table, player_id, body.rule_set_id)
+        if rule_set.kind != GAME_KIND:
+            raise invalid_request(
+                f"rule set {body.rule_set_id!r} is for {rule_set.kind}, not {GAME_KIND}"
+            )
+        return rule_set.rules
     return body.house_rules.to_domain()
 
 

@@ -25,7 +25,7 @@ _CASES: tuple[tuple[Callable[[dict[str, Any]], tuple[str, str]], dict[str, Any]]
         {
             "game_id": "7F3AKM",
             "recipient_username": "alice",
-            "marks": {"north_south": 0, "east_west": 0},
+            "scores": {"north_south": 0, "east_west": 0},
         },
     ),
     (
@@ -33,7 +33,7 @@ _CASES: tuple[tuple[Callable[[dict[str, Any]], tuple[str, str]], dict[str, Any]]
         {
             "game_id": "7F3AKM",
             "recipient_username": "alice",
-            "marks": {"north_south": 7, "east_west": 3},
+            "scores": {"north_south": 7, "east_west": 3},
         },
     ),
     (
@@ -68,11 +68,11 @@ def test_render_your_turn_mentions_game_and_recipient() -> None:
     assert "alice" in body
 
 
-def test_render_game_over_reports_final_marks() -> None:
+def test_render_game_over_reports_final_scores() -> None:
     data = {
         "game_id": "7F3AKM",
         "recipient_username": "alice",
-        "marks": {"north_south": 7, "east_west": 3},
+        "scores": {"north_south": 7, "east_west": 3},
     }
     subject, body = render_game_over(data)
     assert "7F3AKM" in subject
@@ -84,11 +84,37 @@ def test_render_game_over_reports_zero_zero() -> None:
     data = {
         "game_id": "7F3AKM",
         "recipient_username": "alice",
-        "marks": {"north_south": 0, "east_west": 0},
+        "scores": {"north_south": 0, "east_west": 0},
     }
     _, body = render_game_over(data)
     assert "North/South 0" in body
     assert "East/West 0" in body
+
+
+def test_render_game_over_names_no_scoring_sides_of_its_own() -> None:
+    """The labels come from the data, not from this module - so a game that scores per player
+    instead of per partnership renders without a change here (DESIGN.md §11)."""
+    data = {
+        "game_id": "7F3AKM",
+        "recipient_username": "alice",
+        "scores": {"alice": 12, "bob": 4},
+    }
+    _, body = render_game_over(data)
+    assert "Alice 12" in body
+    assert "Bob 4" in body
+    assert "North" not in body
+
+
+def test_render_game_over_survives_an_empty_score_map() -> None:
+    """``_read_scores`` returns ``{}`` when META has none; the email still has to go out."""
+    data: dict[str, object] = {
+        "game_id": "7F3AKM",
+        "recipient_username": "alice",
+        "scores": {},
+    }
+    subject, body = render_game_over(data)
+    assert "7F3AKM" in subject
+    assert "alice" in body
 
 
 def test_render_invite_mentions_inviter_and_game() -> None:

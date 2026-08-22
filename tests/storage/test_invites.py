@@ -113,7 +113,7 @@ def test_join_seat_admits_an_invited_player_and_consumes_the_invite(table: Table
 
     lobby = join_seat(table, "g1", "east", "east", Seat.EAST, rng=Random(0))
 
-    assert lobby.seat_of("east") is Seat.EAST
+    assert lobby.seat_of("east") == Seat.EAST
     assert find_invite(table, "g1", "east") is False
     assert list_invites_for_player(table, "east") == ()
 
@@ -123,7 +123,7 @@ def test_join_seat_on_a_public_game_needs_no_invite(table: Table) -> None:
 
     lobby = join_seat(table, "g1", "east", "east", Seat.EAST, rng=Random(0))
 
-    assert lobby.seat_of("east") is Seat.EAST
+    assert lobby.seat_of("east") == Seat.EAST
 
 
 def test_join_seat_still_consumes_a_stray_invite_on_a_public_game(table: Table) -> None:

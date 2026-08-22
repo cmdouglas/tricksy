@@ -208,6 +208,14 @@ def _complete_hand(state: GameState, rng: Random) -> GameState:
 
 
 def _deal_hand(config: HouseRules, dealer: Seat, rng: Random) -> HandState:
+    """One shuffle, then seven tiles per seat in ``Seat`` order.
+
+    **That shape is depended on outside the engine.** ``t42.storage.replay`` reconstructs a game by
+    handing a recorded deal back through ``rng.shuffle``, which works only because this deals with
+    exactly one ``shuffle`` call per hand and slices the result in ``Seat`` order. Dealing any other
+    way - two shuffles, tile-by-tile draws, a different seat order - would not raise anywhere; it
+    would make replay silently rebuild a different game. Change that module in step with this one.
+    """
     tiles = list(FULL_SET)
     rng.shuffle(tiles)
     hands = {seat: tuple(tiles[i * 7 : (i + 1) * 7]) for i, seat in enumerate(Seat)}

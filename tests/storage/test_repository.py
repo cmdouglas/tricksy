@@ -208,7 +208,7 @@ def test_full_game_through_repository_reaches_game_over_and_matches_replay(table
     assert replay(game_id, PLAYERS, config, logged_events) == final
 
     meta = table.get_item(Key={"PK": f"GAME#{game_id}", "SK": "META"})["Item"]
-    assert meta["marks"] == {
+    assert meta["scores"] == {
         "north_south": final.marks.get(Team.NORTH_SOUTH, 0),
         "east_west": final.marks.get(Team.EAST_WEST, 0),
     }

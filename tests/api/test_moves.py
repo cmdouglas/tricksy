@@ -1,7 +1,11 @@
-"""The three move endpoints (ROADMAP.md 2.5, DESIGN.md §6).
+"""The move endpoint (ROADMAP.md 2.5, DESIGN.md §6).
 
 Includes the four-case matrix DESIGN.md §10 asks for per mutating endpoint - valid move, invalid
 move, out of turn, stale version - plus idempotency and the hidden-information sweep.
+
+Every move goes to ``POST /games/{id}/moves``, discriminated on ``kind``, so ``_helpers.submit``
+posts a projected legal move back with no translation at all - see
+:func:`test_a_projected_legal_move_is_a_valid_request_body_verbatim`.
 """
 
 from __future__ import annotations
@@ -44,6 +48,28 @@ def test_a_legal_bid_is_accepted_and_advances_the_turn(players: list[Client], ga
     assert response.json()["view"]["to_act"] != before
 
 
+def test_a_projected_legal_move_is_a_valid_request_body_verbatim(
+    players: list[Client], game: str
+) -> None:
+    """What collapsing the three move endpoints into one buys: ``legal_moves`` entries are already
+    request bodies, so a client needs no table mapping move kinds to paths (DESIGN.md §6, §11).
+
+    Posted with the ``None``-valued keys left in, exactly as ``project`` emits them, since that is
+    what a client that does no filtering would send.
+    """
+    player, view = whose_turn(players, game)
+
+    for move in view["legal_moves"]:
+        assert set(move) >= {"kind"}
+        # A dry run against a *different* seat: rejected for being out of turn, which proves the
+        # body parsed and reached the engine rather than being refused as malformed.
+        response = _other(players, player).post(f"/games/{game}/moves", move)
+        assert response.status_code == 409, move
+        assert response.json()["error"]["code"] == "OUT_OF_TURN"
+
+    assert submit(player, game, view["legal_moves"][0]).status_code == 200
+
+
 def test_passing_is_accepted(players: list[Client], game: str) -> None:
     player, view = whose_turn(players, game)
     passes = [m for m in view["legal_moves"] if m["kind"] == "PASS"]
@@ -70,7 +96,7 @@ def test_a_full_game_runs_to_completion_over_http(players: list[Client]) -> None
 def test_an_illegal_bid_is_400(players: list[Client], game: str) -> None:
     player, _ = whose_turn(players, game)
 
-    response = player.post(f"/games/{game}/bid", {"kind": "BID", "points": 41, "marks": 3})
+    response = player.post(f"/games/{game}/moves", {"kind": "BID", "points": 41, "marks": 3})
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] in {"ILLEGAL_MOVE", "RULES_ERROR"}
@@ -79,7 +105,7 @@ def test_an_illegal_bid_is_400(players: list[Client], game: str) -> None:
 def test_playing_a_domino_during_the_auction_is_400(players: list[Client], game: str) -> None:
     player, _ = whose_turn(players, game)
 
-    response = player.post(f"/games/{game}/play", {"domino": "6-6"})
+    response = player.post(f"/games/{game}/moves", {"kind": "PLAY_DOMINO", "domino": "6-6"})
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "ILLEGAL_MOVE"
@@ -88,7 +114,7 @@ def test_playing_a_domino_during_the_auction_is_400(players: list[Client], game:
 def test_declaring_trump_during_the_auction_is_400(players: list[Client], game: str) -> None:
     player, _ = whose_turn(players, game)
 
-    response = player.post(f"/games/{game}/contract", {"trump": 3})
+    response = player.post(f"/games/{game}/moves", {"kind": "DECLARE_CONTRACT", "trump": 3})
 
     assert response.status_code == 400
 
@@ -96,7 +122,7 @@ def test_declaring_trump_during_the_auction_is_400(players: list[Client], game: 
 def test_an_unparseable_domino_is_400(players: list[Client], game: str) -> None:
     player, _ = whose_turn(players, game)
 
-    response = player.post(f"/games/{game}/play", {"domino": "9-9"})
+    response = player.post(f"/games/{game}/moves", {"kind": "PLAY_DOMINO", "domino": "9-9"})
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "INVALID_REQUEST"
@@ -106,8 +132,8 @@ def test_a_malformed_body_is_422(players: list[Client], game: str) -> None:
     """Distinct from the 400s above: this is the wrong shape, not a rejected move."""
     player, _ = whose_turn(players, game)
 
-    assert player.post(f"/games/{game}/bid", {"kind": "NOT_A_KIND"}).status_code == 422
-    assert player.post(f"/games/{game}/play", {}).status_code == 422
+    assert player.post(f"/games/{game}/moves", {"kind": "NOT_A_KIND"}).status_code == 422
+    assert player.post(f"/games/{game}/moves", {"kind": "PLAY_DOMINO"}).status_code == 422
 
 
 # --------------------------------------------------------------------------------- out of turn
@@ -130,7 +156,7 @@ def test_a_player_not_in_the_game_gets_403_not_409(
     whose turn it is."""
     eve = Client.register(client, "eve")
 
-    response = eve.post(f"/games/{game}/bid", {"kind": "PASS"})
+    response = eve.post(f"/games/{game}/moves", {"kind": "PASS"})
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "NOT_A_PLAYER"
@@ -140,7 +166,7 @@ def test_moving_in_a_game_that_has_not_been_dealt_is_409(alice: Client, bob: Cli
     game = alice.create_game(seat=0)
     bob.join(game, 1)
 
-    response = alice.post(f"/games/{game}/bid", {"kind": "PASS"})
+    response = alice.post(f"/games/{game}/moves", {"kind": "PASS"})
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "GAME_NOT_STARTED"

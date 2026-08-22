@@ -179,7 +179,13 @@ def test_my_games_includes_waiting_games(alice: Client) -> None:
 
     (summary,) = alice.get("/players/me/games").json()["games"]
 
-    assert summary == {"game_id": game_id, "status": "WAITING", "seat": 0, "is_my_turn": False}
+    assert summary == {
+        "game_id": game_id,
+        "kind": "texas42",
+        "status": "WAITING",
+        "seat": 0,
+        "is_my_turn": False,
+    }
 
 
 def test_my_games_is_empty_for_a_new_player(alice: Client) -> None:

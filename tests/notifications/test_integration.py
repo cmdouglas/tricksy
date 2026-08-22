@@ -186,7 +186,11 @@ def test_the_right_seat_is_mailed_at_each_turn_across_a_real_delay(
             assert {email.to for email in new_mail} == verified_addresses
             for email in new_mail:
                 assert game_id in email.subject
-                assert "Final marks" in email.body
+                assert "Final score" in email.body
+                # The labels come off META.scores, so this also proves the real denormalized
+                # map reached the renderer rather than the empty-map default.
+                assert "North/South" in email.body
+                assert "East/West" in email.body
             break
 
         next_player, _ = whose_turn(players, game_id)

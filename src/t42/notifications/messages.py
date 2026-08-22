@@ -7,9 +7,10 @@ which will call the function it needs by name, the same way ``t42.cli``'s comman
 ``render.render_game`` and friends directly rather than through a dispatch table.
 
 Every dict shares ``game_id`` (game ids double as join codes, DESIGN.md §4.1, so there is no
-separate join-code key) and ``recipient_username``. ``render_game_over``'s ``marks`` key has the
-same ``{"north_south": int, "east_west": int}`` shape ``t42.engine.projection.project`` already
-emits, so a caller can pass ``META``'s stored marks straight through. ``render_invite``'s
+separate join-code key) and ``recipient_username``. ``render_game_over``'s ``scores`` key is an
+open ``{label: int}`` map, passed through from ``META.scores`` exactly as stored - deliberately not
+a fixed pair of partnership keys, so nothing in this package encodes how any one game scores
+(DESIGN.md §11). ``render_invite``'s
 ``invited_by`` key does not exist in storage yet - ``invite_player`` currently writes only
 ``{game_id, created_at}`` - 4.5 adds it; this module just assumes it will be present.
 
@@ -33,16 +34,27 @@ def render_your_turn(data: dict[str, Any]) -> tuple[str, str]:
     return subject, body
 
 
+def _score_label(label: str) -> str:
+    """``"north_south"`` -> ``"North/South"``. A scoring side's stored label, made readable
+    without knowing what sides the game has."""
+    return label.replace("_", "/").title()
+
+
 def render_game_over(data: dict[str, Any]) -> tuple[str, str]:
-    """Expects: game_id, recipient_username, marks {"north_south": int, "east_west": int}."""
+    """Expects: game_id, recipient_username, scores {label: int}.
+
+    ``scores`` is an open map, not a fixed pair of partnership keys - whatever
+    ``META.scores`` holds, in the order it was written. That is what lets this renderer
+    belong to a package that knows nothing about how any particular game scores.
+    """
     game_id = data["game_id"]
-    marks = data["marks"]
+    scores: dict[str, Any] = data["scores"]
     subject = f"Game {game_id} is over"
-    body = (
-        f"Hi {data['recipient_username']},\n\n"
-        f"Game {game_id} is over. Final marks: "
-        f"North/South {marks['north_south']} - East/West {marks['east_west']}."
+    tally = (
+        " - ".join(f"{_score_label(label)} {score}" for label, score in scores.items())
+        or "unavailable"
     )
+    body = f"Hi {data['recipient_username']},\n\nGame {game_id} is over. Final score: {tally}."
     return subject, body
 
 

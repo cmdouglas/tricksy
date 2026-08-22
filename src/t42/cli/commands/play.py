@@ -99,9 +99,18 @@ def _bid(args: argparse.Namespace) -> int:
         return 2
 
     client, _ = build_client(args)
-    response = client.request("POST", f"/games/{args.code}/bid", json=body, idempotent=True)
+    response = client.request("POST", _moves_path(args.code), json=body, idempotent=True)
     emit(args, response, render.render_game)
     return 0
+
+
+def _moves_path(code: str) -> str:
+    """Every move goes to the one endpoint; the ``kind`` in the body says which move it is.
+
+    The three commands here stay separate because they are three different things to *type*, not
+    because they are three different things to send.
+    """
+    return f"/games/{code}/moves"
 
 
 def _parse_bid_body(raw_token: str, contract: str | None) -> dict[str, Any] | None:
@@ -138,7 +147,10 @@ def _configure_declare(parser: argparse.ArgumentParser) -> None:
 def _declare(args: argparse.Namespace) -> int:
     client, _ = build_client(args)
     response = client.request(
-        "POST", f"/games/{args.code}/contract", json={"trump": args.trump}, idempotent=True
+        "POST",
+        _moves_path(args.code),
+        json={"kind": "DECLARE_CONTRACT", "trump": args.trump},
+        idempotent=True,
     )
     emit(args, response, render.render_game)
     return 0
@@ -163,10 +175,10 @@ def _configure_play(parser: argparse.ArgumentParser) -> None:
 
 def _play(args: argparse.Namespace) -> int:
     client, _ = build_client(args)
-    body: dict[str, Any] = {"domino": args.domino}
+    body: dict[str, Any] = {"kind": "PLAY_DOMINO", "domino": args.domino}
     if args.declared_suit is not None:
         body["declared_suit"] = args.declared_suit
-    response = client.request("POST", f"/games/{args.code}/play", json=body, idempotent=True)
+    response = client.request("POST", _moves_path(args.code), json=body, idempotent=True)
     emit(args, response, render.render_game)
     return 0
 

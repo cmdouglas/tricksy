@@ -212,7 +212,8 @@ Phase 3 (CLI) is complete; bot players are designed in DESIGN.md §13 and sequen
 - **3.5 (play commands)** is complete: `status`, `games`, `bid`, `declare`, `play` - the commands
   that actually run a game. `bid`'s five spellings (a points bid, `pass`, an `N-marks` bid with an
   optional `--contract`, `confirm`, `decline`) all dispatch onto the one `kind`-discriminated
-  `/bid` body (DESIGN.md §6); `confirm`/`decline` are both `CONFIRM_BID` with `accept=True`/
+  move body (DESIGN.md §6; it rode on `/bid` until the move endpoints were merged - see "Multi-game
+  hedges" below); `confirm`/`decline` are both `CONFIRM_BID` with `accept=True`/
   `False`, since there is no `DECLINE` kind on the wire. `declare`'s `trump=<suit>`/`trump=none`
   token and `play`'s `--declare` flag both parse through a new `parse_suit`, the input-side
   counterpart to `render.py`'s own suit-name table - duplicated rather than shared, the same
@@ -426,10 +427,58 @@ Phase 4 (notifications) is complete; see ROADMAP.md for the full 4.1-4.7 breakdo
   test now asserts that rather than assuming silence. With this, Phase 4's exit criteria
   (ROADMAP.md) are all met.
 
+**Multi-game hedges** (DESIGN.md §11.1) are not a phase and did not come from ROADMAP.md. They are a
+small set of changes made in answer to "what would a second game with its own rules engine affect?",
+taken while nothing was deployed and therefore while anything written to disk or exposed on the wire
+was still free to change. **Supporting a second game is still not a goal**, and nothing dispatches on
+which game is being played - there is no `Game` protocol, no game registry, no per-kind codec. The
+rule the work followed, and the thing to remember before extending any of it:
+
+> Hedge what goes on disk or on the wire. Do not hedge code shape.
+
+A discriminator missing from a persisted item is a backfill over an immutable event log (invariant 6);
+a missing abstraction in `codec.py` is a refactor, no dearer later and cheaper once a second game's
+real shape is known rather than guessed. What that bought, concretely:
+
+- **`t42.engine.GAME_KIND`** (`"texas42"`) is written as `kind` on `GAME#/META`, `GAME#/STATE`,
+  `PLAYER#/GAME#` and `PLAYER#/RULESET#`, and read back with a default so a pre-`kind` item still
+  decodes. `EVENT#` items carry none on purpose: they are partition-scoped under a `GAME#` whose
+  `META` already says the kind, and the log is never replayed without the `config`/`players` that
+  come from that same item. `update_rule_set` deliberately does *not* write `kind` - a set's game is
+  fixed at creation, and an edit that could change it would be the bug the field exists to prevent.
+- **`GSI1PK` is `OPEN#<kind>`**, not a bare `OPEN`; `list_open_games` takes a `kind` keyword.
+- **`t42.storage.lobby` no longer derives its table size from the engine.** `seat_count` lives on
+  `META`, `Lobby.seats` is keyed by plain `int`, and `is_full` counts against the stored number
+  rather than `len(Seat)`. `_deal` is the one place `Seat` re-enters, because it is the call into the
+  engine. This was the only hard four-handed assumption outside `t42.engine`.
+- **`META.scores` replaced `META.marks`** as an open `{label: int}` map keyed on `team.name.lower()`
+  - the identical `{north_south, east_west}` shape for 42, but readable without knowing that. With
+  `handler._read_scores` and `messages.render_game_over` iterating it, **`t42.notifications` now
+  encodes nothing about how any one game scores**, on top of already importing nothing from
+  `t42.engine`.
+- **`POST /games/{game_id}/moves` replaced `/bid`, `/contract` and `/play`**, with `MoveRequest`
+  discriminating all five move bodies on `kind`. This is a simplification independent of any second
+  game: all three handlers were the same one-liner and `_submit` never inspects the move, so the URLs
+  carried nothing the body did not. The payoff is that `MoveRequest`'s `kind` tags are exactly the
+  ones `project()` stamps on each `legal_moves` entry, so **a projected legal move is a valid request
+  body verbatim** - `tests/api/_helpers.py`'s `submit` used to hold a kind-to-path table and now
+  posts the move unchanged, which is the cleanest evidence the merge was right.
+
+Two things documented rather than changed. `t42.storage.replay` reconstructs a game by feeding
+recorded deals back through `Random.shuffle`, so it silently depends on `game._deal_hand` calling
+`rng.shuffle` **exactly once per hand** and slicing in `Seat` order; a dealer that violated that
+would not raise, it would replay a different game. Both docstrings now say so. And the natural
+extraction boundary, if a second game is ever actually wanted, is small: `new_game`/`apply_move`/
+`legal_moves`/`project`, a codec quintuple, and `events_for_move` - everything `t42.storage` does
+with a `GameState` beyond encode/decode is three accessors (`.phase`, `.players`+`.to_act`,
+`.marks`).
+
 ## Layout
 
 ```
 src/t42/engine/     pure rules library (Phase 0 - complete)
+    __init__.py     re-export hub, plus GAME_KIND ("texas42"): what this engine is, as a value
+                     storage and the API write down (multi-game hedges)
     dominoes.py     the 28 tiles, a-b notation
     suits.py        trump membership, led suit, follow, ranking, doubles-own-suit variant
     scoring.py      count-domino values, hand point totals
@@ -449,20 +498,25 @@ src/t42/storage/    DynamoDB event log + materialized state   (Phases 1, 2 and 2
     codec.py        GameState/HouseRules/Event <-> plain attribute maps (1.1)
     events.py       move/deal -> Event (write direction)                (1.2)
     replay.py       Event log -> GameState via real new_game/apply_move (1.2)
-    repository.py   start_game/get_state/append/find_request, GameStatus (1.3, 1.4, 2.2)
+    repository.py   start_game/get_state/append/find_request, GameStatus (1.3, 1.4, 2.2);
+                     STATE carries `kind`, META carries `scores` (multi-game hedges)
     lobby.py        create_pending_game/join_seat/list_games_for_player/
-                     list_open_games, Visibility                  (2.2, 2.7.2, 2.7.3)
+                     list_open_games, Visibility                  (2.2, 2.7.2, 2.7.3);
+                     int-keyed seats and a stored seat_count      (multi-game hedges)
     accounts.py     players, passwords, per-device bearer tokens, contact channels,
                      email verification + password reset      (2.1, 2.7.2, 4.2, 4.3)
-    rule_sets.py    named HouseRules saved under a player's own partition (2.7.1)
+    rule_sets.py    named HouseRules saved under a player's own partition, tagged with
+                     the game they are for (2.7.1, multi-game hedges)
     invites.py      GAME#/INVITE# + PLAYER#/INVITE# permission-grant CRUD (2.7.2)
     errors.py       GameNotFound, VersionConflict, SeatTaken, InvalidToken, ...
     schema.py       create_table(dynamodb, name); `python -m t42.storage.schema` (3.6);
                      stream enabled, NEW_AND_OLD_IMAGES (4.4)
 src/t42/api/        FastAPI app behind Mangum                 (Phases 2, 2.7 and 4.2, ongoing)
-    app.py          the twenty-nine endpoints; `_submit` is the one write path for moves (2.4)
+    app.py          the twenty-eight endpoints; `_submit` is the one write path behind the one
+                     move endpoint, POST /games/{id}/moves (2.4, multi-game hedges)
     deps.py         table/sender handles and the bearer-token dependency, all overridable (2.4, 4.2)
-    schemas.py      pydantic request/response bodies; the bid body is discriminated (2.3)
+    schemas.py      pydantic request/response bodies; MoveRequest discriminates every move
+                     on `kind` (2.3, multi-game hedges)
     errors.py       domain exception -> status code + machine-readable code          (2.3)
     lambda_handler.py  `Mangum(app)`, nothing else                                   (2.6)
 src/t42/cli/        thin command-line client                  (Phase 3, complete)
@@ -475,11 +529,13 @@ src/t42/cli/        thin command-line client                  (Phase 3, complete
     context.py      build_client/emit, shared by every command handler (3.4)
     houserules.py   --contracts/--marks/--set flags shared by create-game and rules (3.4)
     commands/       account.py, tables.py, rules.py (3.4); play.py (3.5)
-src/t42/notifications/  the send channel (Phase 4, underway)
+src/t42/notifications/  the send channel (Phase 4, complete). Imports nothing from t42.engine and,
+                    since the multi-game hedges, encodes nothing about how any game scores either
     sender.py       EmailSender protocol; ConsoleSender/SesSender, chosen by env var (4.1)
     messages.py     pure dict -> (subject, body) renderers, one per notification kind
                      (4.1: turn/game-over/invite; 4.2 adds render_verify_contact;
-                     4.3 adds render_password_reset)
+                     4.3 adds render_password_reset). render_game_over iterates an open
+                     {label: int} scores map rather than naming partnerships
     records.py      transition_from_record: raw DynamoDB Streams record -> Transition (4.4);
                      tolerates real DynamoDB Streams dropping the "M" wrapper on an empty map (4.5)
     handler.py      lambda_handler over notifications_for (pure classifier) and
@@ -493,7 +549,10 @@ tests/engine/       mirrors the engine modules; test_full_game.py is the Phase 0
                     `on_transition` hooks) are reused by tests/storage/ to generate real games for
                     the codec, replay and repository round-trip tests
 tests/storage/      mirrors src/t42/storage/; _helpers.py's `started_game` reaches a dealt game
-                    the way a real one is reached, through the lobby rather than around it
+                    the way a real one is reached, through the lobby rather than around it.
+                    test_game_kind.py covers the multi-game hedges: `kind` written on all four
+                    item types and read back tolerantly, `is_full`/`open_seats` following the
+                    stored seat_count rather than len(Seat), and the per-kind OpenGames partition
 tests/api/          contract tests over FastAPI's in-process TestClient, with `table` and (4.2)
                     `get_sender` injected via `app.dependency_overrides`; _helpers.py's
                     `Client`/`play_until` drive a whole game over HTTP, and every test goes

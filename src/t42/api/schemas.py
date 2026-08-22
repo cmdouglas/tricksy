@@ -193,6 +193,7 @@ class RuleSetRequest(_Strict):
 class RuleSetResponse(BaseModel):
     rule_set_id: str
     name: str
+    kind: str
     house_rules: dict[str, Any]
     created_at: str
 
@@ -201,6 +202,7 @@ class RuleSetResponse(BaseModel):
         return cls(
             rule_set_id=rule_set.rule_set_id,
             name=rule_set.name,
+            kind=rule_set.kind,
             house_rules=_house_rules_json(rule_set.rules),
             created_at=rule_set.created_at,
         )
@@ -271,8 +273,8 @@ class PassBody(_Strict):
 
 
 class ConfirmBidBody(_Strict):
-    """The partner's public answer to a pending plunge (DESIGN.md §12). It rides on ``/bid``
-    rather than getting an endpoint of its own, because it is an auction move."""
+    """The partner's public answer to a pending plunge (DESIGN.md §12). No endpoint of its own,
+    because it is just another move."""
 
     kind: Literal["CONFIRM_BID"] = "CONFIRM_BID"
     accept: bool
@@ -281,22 +283,19 @@ class ConfirmBidBody(_Strict):
         return ConfirmBid(actor=actor, accept=self.accept)
 
 
-#: Discriminated on ``kind``, so the three auction moves are one endpoint with three well-typed
-#: bodies rather than one body of mutually exclusive optional fields.
-AuctionRequest = Annotated[BidBody | PassBody | ConfirmBidBody, Field(discriminator="kind")]
-
-
-class DeclareContractRequest(_Strict):
+class DeclareContractBody(_Strict):
+    kind: Literal["DECLARE_CONTRACT"] = "DECLARE_CONTRACT"
     trump: Suit | None = None
 
     def to_move(self, actor: PlayerId) -> Move:
         return DeclareContract(actor=actor, trump=self.trump)
 
 
-class PlayDominoRequest(_Strict):
+class PlayDominoBody(_Strict):
     """``domino`` is ``a-b`` notation (DESIGN.md §7); ``declared_suit`` names which end is the
     suit led, when the house rules allow it (DESIGN.md §5.2)."""
 
+    kind: Literal["PLAY_DOMINO"] = "PLAY_DOMINO"
     domino: str = Field(max_length=8)
     declared_suit: Suit | None = None
 
@@ -306,6 +305,21 @@ class PlayDominoRequest(_Strict):
         except ValueError as exc:
             raise invalid_request(str(exc)) from exc
         return PlayDomino(actor=actor, domino=domino, declared_suit=self.declared_suit)
+
+
+#: Every move, discriminated on ``kind`` - the body of the one ``POST /games/{id}/moves`` endpoint
+#: (DESIGN.md §6).
+#:
+#: One endpoint rather than one per phase, because the three it replaced were the same handler
+#: three times over: :func:`t42.api.app._submit` never inspects the move, so the URL carried no
+#: information the body did not already have. The ``kind`` tags are exactly the ones
+#: :func:`t42.engine.projection.project` puts on each entry of ``legal_moves``, so a client can
+#: post a legal move straight back without a table mapping kinds to paths - and a game with a
+#: different move vocabulary is a different union behind the same route (DESIGN.md §11).
+MoveRequest = Annotated[
+    BidBody | PassBody | ConfirmBidBody | DeclareContractBody | PlayDominoBody,
+    Field(discriminator="kind"),
+]
 
 
 class SeatResponse(BaseModel):
@@ -325,9 +339,11 @@ class GameResponse(BaseModel):
     """
 
     game_id: str
+    kind: str
     status: str
     visibility: str
     seats: list[SeatResponse]
+    seat_count: int
     house_rules: dict[str, Any]
     view: dict[str, Any] | None = None
 
@@ -335,12 +351,14 @@ class GameResponse(BaseModel):
     def of(cls, lobby: Lobby, view: dict[str, Any] | None) -> GameResponse:
         return cls(
             game_id=lobby.game_id,
+            kind=lobby.kind,
             status=lobby.status.value,
             visibility=lobby.visibility.value,
             seats=[
-                SeatResponse(seat=seat.value, player_id=a.player_id, username=a.username)
+                SeatResponse(seat=seat, player_id=a.player_id, username=a.username)
                 for seat, a in sorted(lobby.seats.items())
             ],
+            seat_count=lobby.seat_count,
             house_rules=_house_rules_json(lobby.config),
             view=view,
         )
@@ -348,6 +366,7 @@ class GameResponse(BaseModel):
 
 class GameSummaryResponse(BaseModel):
     game_id: str
+    kind: str
     status: str
     seat: int
     is_my_turn: bool
@@ -356,8 +375,9 @@ class GameSummaryResponse(BaseModel):
     def of(cls, summary: GameSummary) -> GameSummaryResponse:
         return cls(
             game_id=summary.game_id,
+            kind=summary.kind,
             status=summary.status.value,
-            seat=summary.seat.value,
+            seat=summary.seat,
             is_my_turn=summary.is_my_turn,
         )
 

@@ -110,22 +110,15 @@ def whose_turn(players: list[Client], game_id: str) -> tuple[Client, dict[str, A
     raise AssertionError(f"nobody has a legal move in game {game_id}")
 
 
-def _endpoint_for(move: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Map a projected legal move back onto the endpoint that submits it (DESIGN.md §6)."""
-    kind = move["kind"]
-    if kind in {"BID", "PASS", "CONFIRM_BID"}:
-        return "bid", {k: v for k, v in move.items() if v is not None or k == "kind"}
-    if kind == "DECLARE_CONTRACT":
-        return "contract", {"trump": move["trump"]}
-    if kind == "PLAY_DOMINO":
-        return "play", {"domino": move["domino"], "declared_suit": move["declared_suit"]}
-    raise AssertionError(f"unknown move kind {kind!r}")
-
-
 def submit(player: Client, game_id: str, move: dict[str, Any], **kwargs: Any) -> Response:
-    """Submit one of the moves ``project`` said was legal, through its proper endpoint."""
-    path, body = _endpoint_for(move)
-    return player.post(f"/games/{game_id}/{path}", body, **kwargs)
+    """Submit one of the moves ``project`` said was legal, posted back **verbatim**.
+
+    There is nothing to translate: every move goes to one endpoint and the ``kind`` tags on
+    ``MoveRequest`` are the ones ``project`` emits, so the projected entry *is* the request body.
+    This helper used to carry a kind-to-path table; that it no longer needs one is the point of
+    collapsing the three move endpoints into ``POST /games/{id}/moves`` (DESIGN.md §6, §11).
+    """
+    return player.post(f"/games/{game_id}/moves", move, **kwargs)
 
 
 def play_until(

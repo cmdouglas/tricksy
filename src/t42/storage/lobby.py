@@ -35,6 +35,7 @@ from typing import Any, Final
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
+from t42.engine import GAME_KIND
 from t42.engine.contracts import validate_house_rules
 from t42.engine.house_rules import HouseRules
 from t42.engine.state import GameId, GameState, PlayerId, Seat
@@ -76,6 +77,15 @@ def _game_sk(game_id: GameId) -> str:
     return f"GAME#{game_id}"
 
 
+def _open_gsi_pk(kind: str) -> str:
+    """The ``OpenGames`` partition for one game kind.
+
+    Namespaced rather than a bare ``"OPEN"`` so browsing open tables is per-kind: a GSI key format
+    is settled by the data already written under it, so this is cheap now and a migration later.
+    """
+    return f"OPEN#{kind}"
+
+
 def new_game_code() -> GameId:
     """A fresh join code. ~730 million possibilities, and a collision is caught by
     :func:`create_pending_game`'s conditional put rather than by checking first."""
@@ -104,25 +114,34 @@ class SeatAssignment:
 @dataclass(frozen=True, slots=True)
 class Lobby:
     """The ``META`` item, decoded. Everything about a game that is true before it is dealt, and
-    stays true after."""
+    stays true after.
+
+    Seats are plain ``int`` here, not :class:`~t42.engine.state.Seat`, and how many there are is
+    read from the item rather than from ``len(Seat)``. Nothing this module does with a seat needs
+    to know what the engine calls it - claiming one is a conditional update on a map key, and
+    "is this table full" is a count. The one place the engine's own seat type is required is
+    :func:`_deal`, which is the call into the engine. See DESIGN.md §11.
+    """
 
     game_id: GameId
+    kind: str
     status: GameStatus
     visibility: Visibility
     config: HouseRules
-    seats: Mapping[Seat, SeatAssignment]
+    seats: Mapping[int, SeatAssignment]
+    seat_count: int
     created_at: str
     last_activity_at: str
 
     @property
     def is_full(self) -> bool:
-        return len(self.seats) == len(Seat)
+        return len(self.seats) == self.seat_count
 
     @property
-    def open_seats(self) -> tuple[Seat, ...]:
-        return tuple(seat for seat in Seat if seat not in self.seats)
+    def open_seats(self) -> tuple[int, ...]:
+        return tuple(seat for seat in range(self.seat_count) if seat not in self.seats)
 
-    def seat_of(self, player_id: PlayerId) -> Seat | None:
+    def seat_of(self, player_id: PlayerId) -> int | None:
         for seat, assignment in self.seats.items():
             if assignment.player_id == player_id:
                 return seat
@@ -135,21 +154,21 @@ class GameSummary:
     a player's games is a single query with no per-game reads."""
 
     game_id: GameId
+    kind: str
     status: GameStatus
-    seat: Seat
+    seat: int
     is_my_turn: bool
 
 
-def _encode_seats(seats: Mapping[Seat, SeatAssignment]) -> dict[str, Any]:
+def _encode_seats(seats: Mapping[int, SeatAssignment]) -> dict[str, Any]:
     return {
-        str(seat.value): {"player_id": a.player_id, "username": a.username}
-        for seat, a in seats.items()
+        str(seat): {"player_id": a.player_id, "username": a.username} for seat, a in seats.items()
     }
 
 
-def _decode_seats(data: Mapping[str, Any]) -> dict[Seat, SeatAssignment]:
+def _decode_seats(data: Mapping[str, Any]) -> dict[int, SeatAssignment]:
     return {
-        Seat(int(key)): SeatAssignment(player_id=value["player_id"], username=value["username"])
+        int(key): SeatAssignment(player_id=value["player_id"], username=value["username"])
         for key, value in data.items()
     }
 
@@ -159,7 +178,7 @@ def create_pending_game(
     game_id: GameId,
     creator: PlayerId,
     username: str,
-    seat: Seat,
+    seat: int,
     config: HouseRules,
     *,
     visibility: Visibility = Visibility.PUBLIC,
@@ -183,9 +202,11 @@ def create_pending_game(
     item: dict[str, Any] = {
         "PK": _game_pk(game_id),
         "SK": "META",
+        "kind": GAME_KIND,
         "status": GameStatus.WAITING.value,
         "visibility": visibility.value,
         "seats": _encode_seats(seats),
+        "seat_count": len(Seat),
         "config": encode_house_rules(config),
         "created_at": timestamp,
         "last_activity_at": timestamp,
@@ -193,7 +214,7 @@ def create_pending_game(
     if visibility is Visibility.PUBLIC:
         # The ``OpenGames`` GSI (DESIGN.md §4.1): sparse, so only a public game ever carries
         # these, and ``start_game`` removes them the moment the game leaves ``WAITING``.
-        item["GSI1PK"] = "OPEN"
+        item["GSI1PK"] = _open_gsi_pk(GAME_KIND)
         item["GSI1SK"] = timestamp
 
     try:
@@ -206,24 +227,27 @@ def create_pending_game(
     _put_player_game_item(table, game_id, creator, seat, GameStatus.WAITING)
     return Lobby(
         game_id=game_id,
+        kind=GAME_KIND,
         status=GameStatus.WAITING,
         visibility=visibility,
         config=config,
         seats=seats,
+        seat_count=len(Seat),
         created_at=timestamp,
         last_activity_at=timestamp,
     )
 
 
 def _put_player_game_item(
-    table: Table, game_id: GameId, player_id: PlayerId, seat: Seat, status: GameStatus
+    table: Table, game_id: GameId, player_id: PlayerId, seat: int, status: GameStatus
 ) -> None:
     table.put_item(
         Item={
             "PK": _player_pk(player_id),
             "SK": _game_sk(game_id),
             "game_id": game_id,
-            "seat": seat.value,
+            "kind": GAME_KIND,
+            "seat": seat,
             "status": status.value,
             "is_my_turn": False,
         }
@@ -242,21 +266,28 @@ def _lobby_from_item(item: Mapping[str, Any]) -> Lobby:
     """Decodes a ``META`` item into a ``Lobby``. Takes the raw item rather than a ``game_id``
     argument so it works equally for a direct ``get_item`` and for a hit off the ``OpenGames``
     GSI, which carries every attribute (``Projection: ALL``) but no key the caller already holds -
-    the game id has to come from the item's own ``PK``."""
+    the game id has to come from the item's own ``PK``.
+
+    ``kind`` and ``seat_count`` are read with a default rather than required, so an item written
+    before either existed still decodes. A missing ``kind`` can only mean the one game there was.
+    """
     normalized = from_dynamo(item)
     return Lobby(
         game_id=as_text(normalized["PK"]).removeprefix("GAME#"),
+        kind=as_text(normalized.get("kind", GAME_KIND)),
         status=GameStatus(normalized["status"]),
         visibility=Visibility(normalized["visibility"]),
         config=decode_house_rules(normalized["config"]),
         seats=_decode_seats(normalized["seats"]),
+        seat_count=int(from_dynamo(normalized.get("seat_count", len(Seat)))),
         created_at=as_text(normalized["created_at"]),
         last_activity_at=as_text(normalized["last_activity_at"]),
     )
 
 
-def list_open_games(table: Table, *, limit: int = 50) -> tuple[Lobby, ...]:
-    """Public tables still ``WAITING``, newest first (DESIGN.md §4.1, ROADMAP.md 2.7.3).
+def list_open_games(table: Table, *, kind: str = GAME_KIND, limit: int = 50) -> tuple[Lobby, ...]:
+    """Public tables of one ``kind`` still ``WAITING``, newest first (DESIGN.md §4.1,
+    ROADMAP.md 2.7.3).
 
     One query on the sparse ``OpenGames`` GSI - an invite-only game, or one that's left
     ``WAITING``, was never indexed in the first place, so there is nothing to filter here.
@@ -265,7 +296,7 @@ def list_open_games(table: Table, *, limit: int = 50) -> tuple[Lobby, ...]:
     response = table.query(
         IndexName="OpenGames",
         KeyConditionExpression="GSI1PK = :open",
-        ExpressionAttributeValues={":open": "OPEN"},
+        ExpressionAttributeValues={":open": _open_gsi_pk(kind)},
         ScanIndexForward=False,
         Limit=limit,
     )
@@ -277,7 +308,7 @@ def join_seat(
     game_id: GameId,
     player_id: PlayerId,
     username: str,
-    seat: Seat,
+    seat: int,
     *,
     rng: Random | None = None,
     now: Callable[[], datetime] = _utcnow,
@@ -307,11 +338,11 @@ def join_seat(
     if held == seat:
         return lobby
     if held is not None:
-        raise AlreadySeated(game_id, held.value)
+        raise AlreadySeated(game_id, held)
     if lobby.status is not GameStatus.WAITING:
         raise GameNotJoinable(game_id, lobby.status.value)
     if seat in lobby.seats:
-        raise SeatTaken(game_id, seat.value)
+        raise SeatTaken(game_id, seat)
     if lobby.visibility is Visibility.INVITE_ONLY and not find_invite(table, game_id, player_id):
         raise NotInvited(game_id)
 
@@ -320,7 +351,7 @@ def join_seat(
             Key={"PK": _game_pk(game_id), "SK": "META"},
             UpdateExpression="SET seats.#seat = :assignment, last_activity_at = :ts",
             ConditionExpression=("#status = :waiting AND attribute_not_exists(seats.#seat)"),
-            ExpressionAttributeNames={"#seat": str(seat.value), "#status": "status"},
+            ExpressionAttributeNames={"#seat": str(seat), "#status": "status"},
             ExpressionAttributeValues={
                 ":assignment": {"player_id": player_id, "username": username},
                 ":waiting": GameStatus.WAITING.value,
@@ -334,7 +365,7 @@ def join_seat(
         current = get_lobby(table, game_id)
         if current.status is not GameStatus.WAITING:
             raise GameNotJoinable(game_id, current.status.value) from exc
-        raise SeatTaken(game_id, seat.value) from exc
+        raise SeatTaken(game_id, seat) from exc
 
     _put_player_game_item(table, game_id, player_id, seat, GameStatus.WAITING)
     # A no-op for a public game, which never had one. Unconditional rather than gated on
@@ -352,8 +383,12 @@ def _deal(
     table: Table, lobby: Lobby, *, rng: Random, now: Callable[[], datetime]
 ) -> GameState | None:
     """Deals a full lobby. Returns ``None`` if somebody else dealt it first, which is a benign
-    outcome rather than an error: the caller wanted a dealt game and there is one."""
-    players = {seat: assignment.player_id for seat, assignment in lobby.seats.items()}
+    outcome rather than an error: the caller wanted a dealt game and there is one.
+
+    The one place this module converts its plain ``int`` seats back into the engine's own
+    :class:`~t42.engine.state.Seat`, because this is the call into the engine.
+    """
+    players = {Seat(seat): assignment.player_id for seat, assignment in lobby.seats.items()}
     try:
         return start_game(table, lobby.game_id, players, lobby.config, rng, now=now)
     except GameAlreadyStarted:
@@ -374,8 +409,9 @@ def list_games_for_player(table: Table, player_id: PlayerId) -> tuple[GameSummar
     summaries = [
         GameSummary(
             game_id=as_text(item["game_id"]),
+            kind=as_text(item.get("kind", GAME_KIND)),
             status=GameStatus(as_text(item["status"])),
-            seat=Seat(int(from_dynamo(item["seat"]))),
+            seat=int(from_dynamo(item["seat"])),
             is_my_turn=bool(item["is_my_turn"]),
         )
         for item in response.get("Items", ())

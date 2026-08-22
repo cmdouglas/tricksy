@@ -165,7 +165,7 @@ def test_bid_command_sends_fresh_idempotency_key(monkeypatch: pytest.MonkeyPatch
     assert status == 0
     call = transport.calls[0]
     assert call.method == "POST"
-    assert call.url == "/games/ABC123/bid"
+    assert call.url == "/games/ABC123/moves"
     assert call.json == {"kind": "BID", "points": 32}
     assert "Idempotency-Key" in call.headers
 
@@ -224,8 +224,8 @@ def test_declare_command_sends_resolved_trump(
     assert status == 0
     call = transport.calls[0]
     assert call.method == "POST"
-    assert call.url == "/games/ABC123/contract"
-    assert call.json == {"trump": expected}
+    assert call.url == "/games/ABC123/moves"
+    assert call.json == {"kind": "DECLARE_CONTRACT", "trump": expected}
     assert "Idempotency-Key" in call.headers
 
 
@@ -257,8 +257,8 @@ def test_play_sends_domino_with_no_declared_suit_key(monkeypatch: pytest.MonkeyP
     assert status == 0
     call = transport.calls[0]
     assert call.method == "POST"
-    assert call.url == "/games/ABC123/play"
-    assert call.json == {"domino": "4-1"}
+    assert call.url == "/games/ABC123/moves"
+    assert call.json == {"kind": "PLAY_DOMINO", "domino": "4-1"}
     assert "Idempotency-Key" in call.headers
 
 
@@ -269,7 +269,11 @@ def test_play_with_declared_lead(monkeypatch: pytest.MonkeyPatch) -> None:
     status = _command("play").handler(_parse("play", ["ABC123", "4-1", "--declare", "treys"]))
 
     assert status == 0
-    assert transport.calls[0].json == {"domino": "4-1", "declared_suit": 3}
+    assert transport.calls[0].json == {
+        "kind": "PLAY_DOMINO",
+        "domino": "4-1",
+        "declared_suit": 3,
+    }
 
 
 def test_play_declare_does_not_accept_none() -> None:

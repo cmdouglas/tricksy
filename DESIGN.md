@@ -54,9 +54,9 @@ Table: `Texas42` (single-table design)
 
 | PK | SK | Item type |
 |---|---|---|
-| `GAME#<gameId>` | `META` | Game metadata: seats (each with player id and username), `status` of `WAITING`/`ACTIVE`/`COMPLETE`, `visibility` of `public`/`invite_only` (section 6.2), created_at, last_activity_at, and the game's house rules (enabled contracts, per-contract options, doubles-as-own-suit flag, marks-to-win, default 7 - see section 5.1) |
+| `GAME#<gameId>` | `META` | Game metadata: `kind` (which game this is - section 11.1), seats (each with player id and username), `seat_count`, `status` of `WAITING`/`ACTIVE`/`COMPLETE`, `visibility` of `public`/`invite_only` (section 6.2), created_at, last_activity_at, the game's house rules (enabled contracts, per-contract options, doubles-as-own-suit flag, marks-to-win, default 7 - see section 5.1), and, once complete, a `scores` map of `{label: int}` denormalized for the notifier (section 8) |
 | `GAME#<gameId>` | `EVENT#<seq>` | One immutable event: bid, pass, trump declaration, domino play |
-| `GAME#<gameId>` | `STATE` | Materialized current full state (server-side only — includes all hands), plus `version` for optimistic locking. Does not exist until the game is `ACTIVE` |
+| `GAME#<gameId>` | `STATE` | Materialized current full state (server-side only — includes all hands), plus `version` for optimistic locking and `kind` (so a read that decodes state needs no second item). Does not exist until the game is `ACTIVE` |
 | `PLAYER#<playerId>` | `GAME#<gameId>` | Lookup: which games a player is in, and their seat/turn/game status, plus the `version` that status reflects and the `notified_version` already emailed about (for "my games" queries and notification targeting - section 8) |
 | `GAME#<gameId>` | `REQUEST#<requestId>` | Idempotency marker for a mutating request, storing the version it produced - a duplicate submission with the same client-generated request ID is a no-op returning the recorded version (section 9) |
 | `PLAYER#<playerId>` | `PROFILE` | Username, contact channels, created_at (section 6.1) |
@@ -92,13 +92,18 @@ a key the caller already holds, so it gets the table's only secondary index: `Op
 `GSI1PK` (hash) and `GSI1SK` (range), projecting `ALL` - `META` is small, and projecting everything
 means a browse row needs no follow-up read.
 
-The index is **sparse**. A `META` item carries `GSI1PK = "OPEN"` and `GSI1SK = <created_at>` only
-while the game is public *and* `WAITING`; every other item in the table omits both attributes and is
-therefore absent from the index entirely. An invite-only game never writes them. A public game drops
-out when it is dealt, because `start_game` removes both attributes in the same conditional update
-that flips `status` to `ACTIVE` - and that update is the only way a game can leave `WAITING`, so
-there is no second place to remember. Browsing is then one query on `GSI1PK = "OPEN"`, descending by
-`GSI1SK`, giving newest-first for free from an ISO-8601 timestamp's lexicographic order.
+The index is **sparse**. A `META` item carries `GSI1PK = "OPEN#<kind>"` and `GSI1SK = <created_at>`
+only while the game is public *and* `WAITING`; every other item in the table omits both attributes
+and is therefore absent from the index entirely. An invite-only game never writes them. A public game
+drops out when it is dealt, because `start_game` removes both attributes in the same conditional
+update that flips `status` to `ACTIVE` - and that update is the only way a game can leave `WAITING`,
+so there is no second place to remember. Browsing is then one query on `GSI1PK = "OPEN#texas42"`,
+descending by `GSI1SK`, giving newest-first for free from an ISO-8601 timestamp's lexicographic
+order.
+
+The partition is namespaced by game kind rather than a bare `"OPEN"` so a browse can never mix games
+(section 11.1). A GSI key format is settled by whatever is already indexed under it, which is why
+this shape was chosen before anything was deployed rather than after.
 
 Two consequences worth writing down. The single `"OPEN"` partition is a hot key, and a real limit at
 some scale well past this project's; the escape is to shard it (`OPEN#<n>` for a small fixed `n`,
@@ -288,13 +293,11 @@ REST-ish, a single FastAPI app behind one Lambda (via Mangum) and API Gateway:
 - `DELETE /games/{id}/invites/{playerId}` - revoke an invite (a seated player) or decline one (the invitee)
 - `GET /players/me/invites` - my pending invites
 - `GET /players/me/games` - list games I'm in, with whose-turn-is-it flags
-- `POST /games/{id}/bid` - submit a bid, a pass, or a confirmation of a pending bid
-- `POST /games/{id}/contract` - declare trump / nello-partner-sitout / plunge trump-pick, as applicable after winning bid
-- `POST /games/{id}/play` - play a domino
+- `POST /games/{id}/moves` - submit any move, discriminated on `kind`
 
 All mutating endpoints: validate via the domain engine, append event + update materialized state transactionally, return the caller's new projected view. Idempotency: each mutating request carries a client-generated request ID in an `Idempotency-Key` header; duplicate submissions with the same ID are no-ops returning the prior result.
 
-The plunge confirmation has no endpoint of its own. It is an auction move, so it rides on `/bid` as one variant of a body discriminated on `kind` (`BID` / `PASS` / `CONFIRM_BID`), which is exactly the engine's move alphabet for that phase.
+**There is one move endpoint, not one per phase.** Its body is discriminated on `kind` over the engine's whole move alphabet - `BID`, `PASS`, `CONFIRM_BID`, `DECLARE_CONTRACT`, `PLAY_DOMINO` - so bidding, the plunge confirmation, declaring trump and playing a tile all post to the same place. Nothing is lost by merging them: the handler never inspects the move, so a per-phase URL said nothing the body did not already say. What is gained is that these are the same `kind` tags `project()` stamps on each entry of `legal_moves`, so **a client can post a legal move straight back** rather than keeping a table that maps move kinds to paths.
 
 The client never sends a version. The server reads the current one, applies the move and writes conditionally in the same request, so optimistic-concurrency bookkeeping stays server-side and `version` never appears on the wire. A lost race surfaces as `409`, with no automatic retry — real contention is impossible in a turn-based game, since a concurrent submission by another player is rejected as out-of-turn first and a resubmission by the same player is absorbed by its idempotency key.
 
@@ -459,9 +462,9 @@ Every endpoint in section 6 is reachable from a command:
 | `t42 uninvite <code> <username>` | `GET` then `DELETE /games/{id}/invites/{playerId}` |
 | `t42 decline <code>` | `DELETE /games/{id}/invites/{own id}` |
 | `t42 invites` | `GET /players/me/invites` |
-| `t42 bid <code> 32 \| pass \| 2-marks --contract nello \| confirm \| decline` | `POST /games/{id}/bid` |
-| `t42 declare <code> trump=fives \| trump=doubles \| trump=none` | `POST /games/{id}/contract` |
-| `t42 play <code> 4-1 [--declare treys]` | `POST /games/{id}/play` |
+| `t42 bid <code> 32 \| pass \| 2-marks --contract nello \| confirm \| decline` | `POST /games/{id}/moves` |
+| `t42 declare <code> trump=fives \| trump=doubles \| trump=none` | `POST /games/{id}/moves` |
+| `t42 play <code> 4-1 [--declare treys]` | `POST /games/{id}/moves` |
 
 The five spellings of `bid` are one command because they are three request bodies on one endpoint,
 discriminated on `kind` - the plunge confirmation being an auction move rather than a phase of its
@@ -613,6 +616,28 @@ Because the domain engine and the player-projected view are both client-agnostic
 None of these require touching the domain engine, persistence layer, or API contract, provided the projected-view shape stays generic (plain data, not CLI-formatted text) from day one. Worth double-checking in Phase 1 that `project()` returns structured JSON rather than anything CLI-specific.
 
 The Phase 3 CLI is the first test of this claim rather than a restatement of it, because it imports nothing from `t42.engine` or `t42.storage` (section 7). That is checkable, and checked: if the CLI can be written against the API alone, so can a client that is not written in Python at all.
+
+### 11.1 Notes for a second game
+
+The extensibility axis above is *clients*. A different game (Spades, Hearts, another domino game) is a different axis, and **supporting one is not a goal**. Section 5.1's non-goal stands: `HouseRules` selects among registered contracts and is not an extension language. There is no `Game` protocol, no game registry, and nothing dispatches on which game is being played.
+
+What was done instead, while nothing was yet deployed, is a small set of hedges chosen on one rule:
+
+> **Hedge what goes on disk or on the wire. Do not hedge code shape.**
+
+A discriminator missing from a persisted item is a backfill over an immutable event log (invariant 6), and a URL is settled the moment a client depends on it. A missing abstraction in `codec.py` is a refactor - no more expensive in two years than today, and cheaper then, because the second game's actual shape would be known rather than guessed. So the disk and wire were hedged and the code was not:
+
+- **`kind` is written on every item that needs to be self-describing**: `GAME#/META`, `GAME#/STATE`, `PLAYER#/GAME#` and `PLAYER#/RULESET#`, from `t42.engine.GAME_KIND` (`"texas42"`). It is read back with a default, so an item written before it existed still decodes. `EVENT#` items deliberately carry none: they are partition-scoped under a `GAME#` whose `META` already says the kind, and the log is never replayed without the `config` and `players` that come from that same item. A saved rule set's `kind` must match the table it is applied to - checked in the game-creation handler, the only place the two meet.
+- **The `OpenGames` GSI partition is `OPEN#<kind>`**, not a bare `OPEN`. A GSI key format is settled by the data already indexed under it.
+- **The lobby no longer derives its table size from the engine.** `seat_count` is stored on `META`, seats are plain `int` throughout `t42.storage.lobby`, and "is this table full" is a count against the stored number rather than `len(Seat)`. The one place the engine's own `Seat` type re-enters is `_deal`, which is the call into the engine. This was the only hard four-handed assumption outside the engine.
+- **`META.scores` is an open `{label: int}` map**, not a fixed pair of partnership keys. For 42 the labels are `north_south`/`east_west`, and nothing that reads it knows that. This is what makes `t42.notifications` free of any one game's scoring shape - it already imported nothing from `t42.engine`, and now nothing in it encodes how 42 scores either.
+- **All moves go to one endpoint, `POST /games/{id}/moves`**, discriminated on `kind`, replacing `/bid`, `/contract` and `/play`. This is a simplification on its own terms: `_submit` never inspects the move, so the three URLs carried nothing the body did not, and the `kind` tags are exactly the ones `project()` puts on each `legal_moves` entry - so a client can post back what the server just offered it, with no table mapping kinds to paths. A game with a different move vocabulary is a different union behind the same route.
+
+Deliberately **not** done, all of it pure code with nothing persisted or exposed at stake: a `Game` protocol or game registry; a per-kind codec registry over `codec.py`/`events.py`/`replay.py`; a generic move/event envelope in the engine; renaming `t42.engine` to something like `t42.games.texas42`; per-kind dispatch in `t42.cli.render`.
+
+If a second game is ever wanted, the extraction boundary is already small: `new_game` / `apply_move` / `legal_moves` / `project`, a codec quintuple, and `events_for_move`. Everything `t42.storage` does with a `GameState` beyond encode and decode is three accessors - `.phase` for `GAME_OVER`, `.players` plus `.to_act` for the `is_my_turn` denormalization, and `.marks` for the score denormalization.
+
+One thing a second engine would have to honour, worth knowing because it is invisible from the outside: `t42.storage.replay` deals by substituting a recorded deal for `Random.shuffle`, so it depends on the engine dealing with **exactly one `rng.shuffle(deck)` per hand**, sliced in seat order. An engine that deals differently would make replay drift silently rather than fail. Both docstrings say so.
 
 ## 12. Open Questions
 
