@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from t42.cli.errors import exit_code_for
+from tricksy.cli.errors import exit_code_for
 
 # DESIGN.md §7.2's table, transcribed here so a change to either drifts visibly.
 _CASES: tuple[tuple[str, int], ...] = (

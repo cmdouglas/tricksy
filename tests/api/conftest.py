@@ -14,9 +14,9 @@ import pytest
 from fastapi.testclient import TestClient
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.api.app import app
-from t42.api.deps import get_table
-from t42.notifications import get_sender
+from tricksy.api.app import app
+from tricksy.api.deps import get_table
+from tricksy.notifications import get_sender
 
 from ..notifications._helpers import FakeSender
 from ._helpers import Client

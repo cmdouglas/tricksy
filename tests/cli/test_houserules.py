@@ -4,7 +4,7 @@ import argparse
 
 import pytest
 
-from t42.cli import houserules
+from tricksy.cli import houserules
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:

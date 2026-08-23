@@ -9,11 +9,11 @@ from random import Random
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.errors import UnknownContract
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move
-from t42.engine.state import GameState, Phase, Seat
-from t42.storage.errors import (
+from tricksy.games.texas42.errors import UnknownContract
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move
+from tricksy.games.texas42.state import GameState, Phase, Seat
+from tricksy.storage.errors import (
     AlreadySeated,
     GameAlreadyExists,
     GameAlreadyStarted,
@@ -21,8 +21,8 @@ from t42.storage.errors import (
     GameNotJoinable,
     SeatTaken,
 )
-from t42.storage.events import events_for_move
-from t42.storage.lobby import (
+from tricksy.storage.events import events_for_move
+from tricksy.storage.lobby import (
     Visibility,
     create_pending_game,
     get_lobby,
@@ -31,9 +31,9 @@ from t42.storage.lobby import (
     list_open_games,
     new_game_code,
 )
-from t42.storage.repository import GameStatus, append, get_state, start_game
+from tricksy.storage.repository import GameStatus, append, get_state, start_game
 
-from ..engine._helpers import PLAYERS, drive_to_game_over, prefer_contract
+from ..games.texas42._helpers import PLAYERS, drive_to_game_over, prefer_contract
 from ._helpers import started_game
 
 _OTHERS = {Seat.EAST: "east", Seat.SOUTH: "south", Seat.WEST: "west"}

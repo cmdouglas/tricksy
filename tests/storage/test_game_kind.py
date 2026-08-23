@@ -14,10 +14,10 @@ from typing import Any
 
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine import GAME_KIND
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import Seat
-from t42.storage.lobby import (
+from tricksy.games.texas42 import GAME_KIND
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import Seat
+from tricksy.storage.lobby import (
     Lobby,
     SeatAssignment,
     Visibility,
@@ -27,8 +27,8 @@ from t42.storage.lobby import (
     list_games_for_player,
     list_open_games,
 )
-from t42.storage.repository import GameStatus, get_state
-from t42.storage.rule_sets import create_rule_set, get_rule_set
+from tricksy.storage.repository import GameStatus, get_state
+from tricksy.storage.rule_sets import create_rule_set, get_rule_set
 
 _OTHERS = {Seat.EAST: "east", Seat.SOUTH: "south", Seat.WEST: "west"}
 

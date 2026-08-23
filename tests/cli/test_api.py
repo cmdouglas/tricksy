@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from t42.cli.api import ApiClient, ApiError
+from tricksy.cli.api import ApiClient, ApiError
 
 
 @dataclass(slots=True)

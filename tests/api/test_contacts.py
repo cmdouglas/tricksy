@@ -128,7 +128,7 @@ def test_verification_for_an_unknown_address_is_a_404(client: TestClient, alice:
 
 
 def _token_from(sender: FakeSender) -> str:
-    match = re.search(r"t42 contact confirm (\S+)", sender.sent[-1].body)
+    match = re.search(r"tricksy contact confirm (\S+)", sender.sent[-1].body)
     assert match is not None, sender.sent[-1].body
     return match.group(1)
 

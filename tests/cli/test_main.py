@@ -4,8 +4,8 @@ import argparse
 
 import pytest
 
-from t42.cli.api import ApiError
-from t42.cli.main import Command, _run, main
+from tricksy.cli.api import ApiError
+from tricksy.cli.main import Command, _run, main
 
 
 def test_no_command_returns_usage_exit_code() -> None:
@@ -104,8 +104,8 @@ def test_global_flags_are_parsed_before_the_subcommand() -> None:
 
 
 def test_env_vars_supply_global_flag_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("T42_API_URL", "http://from-env")
-    monkeypatch.setenv("T42_PROFILE", "south")
+    monkeypatch.setenv("TRICKSY_API_URL", "http://from-env")
+    monkeypatch.setenv("TRICKSY_PROFILE", "south")
     captured: dict[str, object] = {}
 
     def handler(args: argparse.Namespace) -> int:
@@ -121,7 +121,7 @@ def test_env_vars_supply_global_flag_defaults(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_explicit_flag_overrides_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("T42_PROFILE", "south")
+    monkeypatch.setenv("TRICKSY_PROFILE", "south")
     captured: dict[str, object] = {}
 
     def handler(args: argparse.Namespace) -> int:

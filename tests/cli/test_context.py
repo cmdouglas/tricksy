@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from t42.cli import config, context
-from t42.cli.api import ApiError
+from tricksy.cli import config, context
+from tricksy.cli.api import ApiError
 
 from ._helpers import fake_transport
 

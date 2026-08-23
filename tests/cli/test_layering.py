@@ -1,6 +1,9 @@
-"""ROADMAP.md 3.7: enforces the claim ``t42/cli/__init__.py``, ``render.py`` and ``api.py`` each
-already make in their own docstrings - that no module under ``t42.cli`` imports ``t42.engine``,
-``t42.storage`` or boto3 (DESIGN.md §7, §11).
+"""ROADMAP.md 3.7: enforces the claim ``tricksy/cli/__init__.py``, ``render.py`` and ``api.py``
+each already make in their own docstrings - that no module under ``tricksy.cli`` imports any game
+engine under ``tricksy.games``, ``tricksy.storage`` or boto3 (DESIGN.md §7, §11).
+
+The forbidden prefix is the whole ``tricksy.games`` package rather than the one engine in it, so a
+second engine is covered the day it is added rather than the day someone remembers this file.
 
 Static analysis rather than a runtime import sweep: it walks the source with ``ast`` instead of
 actually importing every module, so it can't be fooled by an import hidden inside a function body
@@ -12,9 +15,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import t42.cli
+import tricksy.cli
 
-_FORBIDDEN_PREFIXES = ("t42.engine", "t42.storage", "boto3")
+_FORBIDDEN_PREFIXES = ("tricksy.games", "tricksy.storage", "boto3")
 
 
 def _imported_modules(source_path: Path) -> set[str]:
@@ -35,11 +38,11 @@ def _is_forbidden(module: str) -> bool:
 
 
 def test_no_module_under_cli_imports_engine_storage_or_boto3() -> None:
-    cli_root = Path(t42.cli.__file__).parent
+    cli_root = Path(tricksy.cli.__file__).parent
     violations: dict[str, set[str]] = {}
     for source_path in sorted(cli_root.rglob("*.py")):
         forbidden = {m for m in _imported_modules(source_path) if _is_forbidden(m)}
         if forbidden:
             violations[str(source_path.relative_to(cli_root))] = forbidden
 
-    assert not violations, f"t42.cli modules importing engine/storage/boto3: {violations}"
+    assert not violations, f"tricksy.cli modules importing engine/storage/boto3: {violations}"

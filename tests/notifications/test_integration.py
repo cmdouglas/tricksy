@@ -26,11 +26,11 @@ from mypy_boto3_dynamodb.client import DynamoDBClient
 from mypy_boto3_dynamodb.service_resource import Table
 from mypy_boto3_dynamodbstreams.client import DynamoDBStreamsClient
 
-from t42.api.app import app
-from t42.api.deps import get_table
-from t42.notifications import get_sender
-from t42.notifications.handler import send_notifications
-from t42.notifications.pump import poll
+from tricksy.api.app import app
+from tricksy.api.deps import get_table
+from tricksy.notifications import get_sender
+from tricksy.notifications.handler import send_notifications
+from tricksy.notifications.pump import poll
 
 from ..api._helpers import Client, seated_game, submit, whose_turn
 from ._helpers import FakeSender
@@ -88,7 +88,7 @@ def streams_client(dynamodb_local: str) -> DynamoDBStreamsClient:
 
 
 def _token_from(sender: FakeSender) -> str:
-    match = re.search(r"t42 contact confirm (\S+)", sender.sent[-1].body)
+    match = re.search(r"tricksy contact confirm (\S+)", sender.sent[-1].body)
     assert match is not None, sender.sent[-1].body
     return match.group(1)
 

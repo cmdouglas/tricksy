@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.storage.accounts import (
+from tricksy.storage.accounts import (
     ContactChannel,
     add_contact,
     authenticate,
@@ -25,7 +25,7 @@ from t42.storage.accounts import (
     revoke_token,
     set_contact_notify,
 )
-from t42.storage.errors import (
+from tricksy.storage.errors import (
     ContactAlreadyExists,
     ContactNotFound,
     InvalidCredentials,
@@ -377,3 +377,17 @@ def test_an_expired_reset_token_is_rejected_and_still_consumed(table: Table) -> 
         complete_password_reset(table, token, "new-password", now=lambda: start)
 
     assert authenticate(table, "charlie", "hunter2") == player.player_id
+
+
+def test_a_single_use_token_never_starts_with_a_dash(table: Table) -> None:
+    """``secrets.token_urlsafe`` emits base64url, so roughly one token in 64 would start with
+    ``-``. ``tricksy.notifications.messages`` prints these inside a command the player is told to
+    copy and run verbatim, and ``argparse`` reads a leading ``-`` as an option flag - so such a
+    token would make ``tricksy contact confirm``/``reset-password`` fail as a usage error before
+    reaching the server. Enough draws that the pre-fix code fails this essentially always."""
+    player = create_player(table, "charlie", "hunter2")
+    add_contact(table, player.player_id, "email", "c@example.com")
+
+    for _ in range(200):
+        assert not begin_verification(table, player.player_id, "c@example.com").startswith("-")
+        assert not begin_password_reset(table, player.player_id).startswith("-")

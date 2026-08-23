@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from t42.notifications.sender import (
+from tricksy.notifications.sender import (
     EMAIL_SENDER_ENV,
     SES_FROM_ADDRESS_ENV,
     ConsoleSender,

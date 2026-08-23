@@ -8,9 +8,9 @@ import pytest
 from boto3.dynamodb.types import TypeSerializer
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.notifications import handler
-from t42.notifications.handler import Notification, notifications_for, send_notifications
-from t42.storage.accounts import ContactChannel, create_player
+from tricksy.notifications import handler
+from tricksy.notifications.handler import Notification, notifications_for, send_notifications
+from tricksy.storage.accounts import ContactChannel, create_player
 
 from ._helpers import FakeSender
 

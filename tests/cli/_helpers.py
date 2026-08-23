@@ -1,7 +1,7 @@
 """Shared test doubles for ``tests/cli/`` (ROADMAP.md 3.4), mirroring the ``tests/storage/`` /
 ``tests/api/`` convention of a per-package ``_helpers.py``.
 
-``FakeTransport`` implements ``t42.cli.api.Transport`` without any network, and records every
+``FakeTransport`` implements ``tricksy.cli.api.Transport`` without any network, and records every
 call so a test can assert on method/path/body/headers - the same pair ``test_api.py`` already
 defines privately; this is the promoted, reusable version.
 """
@@ -16,8 +16,8 @@ from typing import Any
 
 import pytest
 
-from t42.cli import render
-from t42.cli.main import main
+from tricksy.cli import render
+from tricksy.cli.main import main
 
 
 @dataclass(slots=True)
@@ -78,7 +78,7 @@ def run_json(argv: list[str], capsys: pytest.CaptureFixture[str]) -> Any:
 def whose_turn_via_cli(
     profiles: list[str], game_id: str, capsys: pytest.CaptureFixture[str]
 ) -> tuple[str, Any] | None:
-    """The profile to act and their current status, found by asking each profile's own ``t42
+    """The profile to act and their current status, found by asking each profile's own ``tricksy
     status --json`` in turn - a client only ever knows its own view, so this asks rather than
     assumes, the CLI-driven counterpart to ``tests/api/_helpers.py``'s ``whose_turn``.
 
@@ -118,7 +118,7 @@ def play_full_game_via_cli(
         turn_profile, game = found
 
         command = render.render_legal_moves(game["view"]["legal_moves"][:1], game_id)
-        move_argv = shlex.split(command)[1:]  # drop the leading "t42"
+        move_argv = shlex.split(command)[1:]  # drop the leading "tricksy"
         exit_code = main(["--profile", turn_profile, *move_argv])
         capsys.readouterr()  # discard the rendered game text so the next status read stays clean
         assert exit_code == 0

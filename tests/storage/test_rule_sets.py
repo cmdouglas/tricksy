@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.errors import RulesError
-from t42.engine.house_rules import HouseRules
-from t42.storage.errors import RuleSetNotFound
-from t42.storage.rule_sets import (
+from tricksy.games.texas42.errors import RulesError
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.storage.errors import RuleSetNotFound
+from tricksy.storage.rule_sets import (
     create_rule_set,
     delete_rule_set,
     get_rule_set,

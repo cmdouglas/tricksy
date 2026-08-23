@@ -1,8 +1,8 @@
 """Shared fixtures for ``tests/cli/`` (ROADMAP.md 3.7).
 
 ``_config_home`` is autouse so no test under here ever touches a real
-``~/.config/t42/config.json`` - it's the same one-line isolation every ``test_commands_*.py`` file
-already hand-rolled individually; promoted here once ``conftest.py`` existed for
+``~/.config/tricksy/config.json`` - it's the same one-line isolation every ``test_commands_*.py``
+file already hand-rolled individually; promoted here once ``conftest.py`` existed for
 :func:`cli_app_client` anyway.
 
 ``cli_app_client`` mirrors ``tests/api/conftest.py``'s ``client`` fixture exactly: the real FastAPI
@@ -24,9 +24,9 @@ import pytest
 from fastapi.testclient import TestClient
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.api.app import app
-from t42.api.deps import get_table
-from t42.notifications import get_sender
+from tricksy.api.app import app
+from tricksy.api.deps import get_table
+from tricksy.notifications import get_sender
 
 from ..notifications._helpers import FakeSender
 

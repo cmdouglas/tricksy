@@ -1,8 +1,9 @@
-# Texas 42 Online
+# Tricksy
 
-A server-authoritative, asynchronous implementation of [Texas 42](https://en.wikipedia.org/wiki/42_(dominoes)):
-partnership domino trick-taking with nello, plunge, sevens and splash. Games are played over
-minutes or hours rather than in real time. See [DESIGN.md](DESIGN.md) for the architecture and
+A server-authoritative, asynchronous server for trick-taking games, played over minutes or hours
+rather than in real time. One game ships today:
+[Texas 42](https://en.wikipedia.org/wiki/42_(dominoes)) - partnership domino trick-taking with
+nello, plunge, sevens and splash. See [DESIGN.md](DESIGN.md) for the architecture and
 [ROADMAP.md](ROADMAP.md) for the phase-by-phase breakdown.
 
 ## Status
@@ -37,11 +38,11 @@ yet; everything above runs locally against DynamoDB Local.
 ## Layout
 
 ```
-src/t42/engine/     pure rules library: no I/O, no AWS, no dependency on the layers below
-src/t42/storage/    DynamoDB event log, materialized state, lobby and accounts
-src/t42/api/        FastAPI app and its Lambda entry point
-src/t42/cli/        thin command-line client  (Phase 3)
-src/t42/notifications/  stream handler, message renderers and the email sender  (Phase 4)
+src/tricksy/games/texas42/     pure rules library: no I/O, no AWS, no dependency on the layers below
+src/tricksy/storage/    DynamoDB event log, materialized state, lobby and accounts
+src/tricksy/api/        FastAPI app and its Lambda entry point
+src/tricksy/cli/        thin command-line client  (Phase 3)
+src/tricksy/notifications/  stream handler, message renderers and the email sender  (Phase 4)
 tests/
 ```
 
@@ -68,14 +69,14 @@ CI runs all of the above, with the integration suite as its own step.
 ## Running the API locally
 
 ```bash
-docker run -d --name t42-ddb -p 8123:8000 amazon/dynamodb-local:latest
+docker run -d --name tricksy-ddb -p 8123:8000 amazon/dynamodb-local:latest
 
 export AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local AWS_DEFAULT_REGION=us-east-1
-export T42_TABLE_NAME=Texas42 T42_DYNAMODB_ENDPOINT=http://localhost:8123
+export TRICKSY_TABLE_NAME=Tricksy TRICKSY_DYNAMODB_ENDPOINT=http://localhost:8123
 
-uv run python -m t42.storage.schema
+uv run python -m tricksy.storage.schema
 
-uv run uvicorn t42.api.app:app --reload --port 8765
+uv run uvicorn tricksy.api.app:app --reload --port 8765
 ```
 
 Interactive API docs are then at `http://localhost:8765/docs`. Register a player, create a game,
@@ -94,5 +95,5 @@ exported. It polls DynamoDB Local's stream and calls the same handler AWS will, 
 email to stdout rather than sending it:
 
 ```bash
-T42_EMAIL_SENDER=console uv run python -m t42.notifications.pump
+TRICKSY_EMAIL_SENDER=console uv run python -m tricksy.notifications.pump
 ```
