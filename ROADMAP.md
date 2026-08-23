@@ -1012,9 +1012,20 @@ at DynamoDB Local, which is what keeps `uv run pytest` free and offline.
   on purpose - a bot is a client of the finished API, so everything else has to work first
 - **Phase 7, Hardening**: abandoned games, CLI errors and help, login rate limiting, deeper
   observability, and the CI deploy (GitHub Actions via an OIDC role) that Phase 5 left manual
+- **Phase 8, Web client**: DESIGN.md §11. A rich React frontend against the same REST API - no new
+  game logic, the same `project()` view every client already reads, and the same move endpoint the
+  CLI posts to. Two things this phase settles that the CLI never had to: auth (a browser holding a
+  bearer token has different risks than the CLI's `0600` config file, so this is where session
+  auth gets a real look rather than staying a footnote) and a CORS policy on the API, untouched
+  since Phase 2 because no browser has called it yet. Hosting is a static build, plausibly
+  S3+CloudFront alongside the existing CDK stack rather than a new deployment story. Last and
+  largest of the three, deliberately: "rich" is open-ended in a way Phase 6's bot policy and Phase
+  7's hardening list are not, and the API's shape should be settled by real hardening before a UI
+  is built to match it.
 
-Phases 6 and 7 may be done in either order. The numbering exists to keep Phase 6's existing
-citations pointing at bots, not to claim hardening comes after them.
+Phases 6 and 7 may be done in either order; Phase 8 comes after both, for the reason given above.
+The numbering exists to keep Phase 6's existing citations pointing at bots, not to claim hardening
+strictly precedes it.
 
 ### Resolved: when does anything get deployed?
 
