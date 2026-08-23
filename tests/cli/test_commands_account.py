@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import secrets
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from tricksy.cli import config, context
 from tricksy.cli.api import ApiError
 from tricksy.cli.command import Command
 from tricksy.cli.commands import account
+from tricksy.cli.main import main
 
 from ._helpers import fake_transport
 
@@ -356,3 +358,37 @@ def test_reset_password_prompts_for_password_when_omitted(
     )
 
     assert transport.calls[0].json["new_password"] == "prompted-pw"
+
+
+def test_every_shape_of_minted_token_parses_through_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The CLI half of the leading-dash fix, driven through ``main(argv)`` rather than the handler
+    so ``argparse`` itself is exercised.
+
+    ``tricksy.notifications.messages`` prints these tokens inside a command the player copies and
+    runs, so every token the server can mint has to survive the parser. A leading ``-`` does not:
+    ``argparse`` reads it as an option flag and exits 2 with "the following arguments are required:
+    token" before any request is made. ``accounts._mint_single_use_token`` therefore re-mints past
+    that one case, and this asserts the resulting alphabet really is parseable - including the
+    ``-`` and ``_`` that base64url still puts *inside* a token, which are harmless and are not
+    worth re-minting over.
+
+    Note the deliberate limit: this locks the contract at the seam, not the parser's tolerance in
+    general. A leading-dash value still fails, which is why the guarantee lives at the mint."""
+    transport = fake_transport(None, status_code=204)
+    monkeypatch.setattr(context, "transport_factory", lambda url: transport)
+
+    tokens = [t for t in (secrets.token_urlsafe(32) for _ in range(400)) if not t.startswith("-")]
+    tokens += ["a-b_c", "_leading_underscore", "trailing-"]
+    assert any("-" in t for t in tokens) and any("_" in t for t in tokens)
+
+    for token in tokens:
+        for argv in (
+            ["contact", "confirm", token],
+            ["reset-password", token, "--password", "hunter2"],
+        ):
+            transport.calls.clear()
+            status = main(argv)
+
+            assert status == 0, f"{argv[0]} exited {status} for {token!r} (2 = argparse rejected)"
+            assert transport.calls[0].json is not None
+            assert transport.calls[0].json["token"] == token

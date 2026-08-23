@@ -554,8 +554,18 @@ def _mint_single_use_token(
     hash, storing ``fields`` alongside ``expires_at``. Returns the plaintext - the only time it
     exists outside the caller. Shared by :func:`begin_verification` and
     :func:`begin_password_reset`, which differ only in ``pk_for``, ``ttl`` and which fields ride
-    along on the item."""
+    along on the item.
+
+    **The token never starts with ``-``.** ``tricksy.notifications.messages`` prints these inside
+    a command the player is told to copy and run verbatim, and a leading ``-`` reads as an option
+    flag to ``argparse`` - so ``tricksy contact confirm -abc...`` dies as a usage error before it
+    ever reaches the server. ``secrets.token_urlsafe`` emits base64url, so without this roughly
+    one verification and reset mail in 64 would carry an unrunnable command. Re-minting costs
+    about 1.6 bits out of ``_TOKEN_BYTES * 8``, which is no reduction worth caring about at this
+    size, and it keeps the fix at the one place both tokens are made."""
     token = secrets.token_urlsafe(_TOKEN_BYTES)
+    while token.startswith("-"):
+        token = secrets.token_urlsafe(_TOKEN_BYTES)
     digest = hash_token(token)
     table.put_item(
         Item={
