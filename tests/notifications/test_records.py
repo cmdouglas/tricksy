@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from t42.notifications.records import Transition, transition_from_record
+from tricksy.notifications.records import Transition, transition_from_record
 
 
 def test_insert_has_no_old_image() -> None:

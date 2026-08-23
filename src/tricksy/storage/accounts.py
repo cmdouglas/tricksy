@@ -51,7 +51,7 @@ from typing import Any, Final
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.state import PlayerId
+from tricksy.games.texas42.state import PlayerId
 
 from ._dynamo import as_text, is_transaction_cancelled, transact_write
 from .errors import (
@@ -253,7 +253,7 @@ def create_player(
 ) -> Player:
     """Registers a player, reserving ``username`` in the same transaction that writes the profile.
 
-    Raises :class:`~t42.storage.errors.UsernameTaken` if the reservation is already held. The
+    Raises :class:`~tricksy.storage.errors.UsernameTaken` if the reservation is already held. The
     player id is server-generated and opaque, never the username, so a username stays renameable
     and never gets embedded in the immutable event log (invariant 6).
     """
@@ -310,7 +310,7 @@ def create_player(
 
 def get_player(table: Table, player_id: PlayerId) -> Player:
     """The profile behind ``player_id``. Raises ``KeyError`` if there is none, matching
-    :func:`t42.engine.state.seat_of`'s convention for an unknown player."""
+    :func:`tricksy.games.texas42.state.seat_of`'s convention for an unknown player."""
     item = table.get_item(Key={"PK": _player_pk(player_id), "SK": "PROFILE"}).get("Item")
     if item is None:
         raise KeyError(f"no player with id {player_id!r}")
@@ -322,7 +322,7 @@ def player_for_username(table: Table, username: str) -> PlayerId:
 
     Unlike :func:`authenticate`, this is meant to be a public existence check - an invite is
     necessarily addressed by a name the inviter can find, so there is no oracle to protect against
-    here the way there is for sign-in. Raises :class:`~t42.storage.errors.PlayerNotFound` for an
+    here the way there is for sign-in. Raises :class:`~tricksy.storage.errors.PlayerNotFound` for an
     unknown username.
     """
     reservation = table.get_item(Key={"PK": _username_pk(username), "SK": "PLAYER"}).get("Item")
@@ -334,7 +334,7 @@ def player_for_username(table: Table, username: str) -> PlayerId:
 def authenticate(table: Table, username: str, password: str) -> PlayerId:
     """Verifies a username and password, returning the player id.
 
-    Raises :class:`~t42.storage.errors.InvalidCredentials` for both an unknown username and a
+    Raises :class:`~tricksy.storage.errors.InvalidCredentials` for both an unknown username and a
     wrong password, and takes about the same time either way - see ``_DUMMY_HASH``.
     """
     reservation = table.get_item(Key={"PK": _username_pk(username), "SK": "PLAYER"}).get("Item")
@@ -414,7 +414,7 @@ def player_for_token(
     the honest trade for keeping the code obvious; if it ever matters, the fix is to skip the
     update when the stored value is recent.
 
-    Raises :class:`~t42.storage.errors.InvalidToken` if the token was never issued or has since
+    Raises :class:`~tricksy.storage.errors.InvalidToken` if the token was never issued or has since
     been revoked.
     """
     digest = hash_token(token)
@@ -507,7 +507,7 @@ def _write_contacts(
 def add_contact(table: Table, player_id: PlayerId, kind: str, address: str) -> Player:
     """Appends a new, unverified, un-muted channel.
 
-    Raises :class:`~t42.storage.errors.ContactAlreadyExists` if this address is already
+    Raises :class:`~tricksy.storage.errors.ContactAlreadyExists` if this address is already
     registered - every other contact operation names a channel by its address, so duplicates
     would make "the" channel ambiguous.
     """
@@ -521,7 +521,7 @@ def add_contact(table: Table, player_id: PlayerId, kind: str, address: str) -> P
 
 
 def remove_contact(table: Table, player_id: PlayerId, address: str) -> Player:
-    """Removes one channel by address. Raises :class:`~t42.storage.errors.ContactNotFound` if no
+    """Removes one channel by address. Raises :class:`~tricksy.storage.errors.ContactNotFound` if no
     channel has this address."""
     item = _get_profile_item(table, player_id)
     contacts = _decode_contacts(item.get("contacts"))
@@ -533,7 +533,7 @@ def remove_contact(table: Table, player_id: PlayerId, address: str) -> Player:
 
 def set_contact_notify(table: Table, player_id: PlayerId, address: str, notify: bool) -> Player:
     """Mutes or unmutes one channel without deleting it. Raises
-    :class:`~t42.storage.errors.ContactNotFound` if no channel has this address."""
+    :class:`~tricksy.storage.errors.ContactNotFound` if no channel has this address."""
     item = _get_profile_item(table, player_id)
     contacts = _decode_contacts(item.get("contacts"))
     _find_contact(contacts, address)
@@ -598,7 +598,7 @@ def begin_verification(
     """Mints a single-use verification token for one contact channel and returns it - the only
     time its plaintext exists outside the caller, mirroring :func:`issue_token`.
 
-    Raises :class:`~t42.storage.errors.ContactNotFound` if the address is not one of this
+    Raises :class:`~tricksy.storage.errors.ContactNotFound` if the address is not one of this
     player's channels.
     """
     item = _get_profile_item(table, player_id)
@@ -618,7 +618,7 @@ def complete_verification(
 ) -> None:
     """Redeems a verification token, marking its channel verified.
 
-    Raises :class:`~t42.storage.errors.InvalidVerificationToken` if the token was never issued,
+    Raises :class:`~tricksy.storage.errors.InvalidVerificationToken` if the token was never issued,
     has already been redeemed, or has expired. A no-op, not an error, if the channel was removed
     between minting and redeeming - there is nothing left to verify.
     """
@@ -649,7 +649,7 @@ def complete_password_reset(
 ) -> None:
     """Redeems a password-reset token: sets a new password and revokes every device.
 
-    Raises :class:`~t42.storage.errors.InvalidResetToken` if the token was never issued, has
+    Raises :class:`~tricksy.storage.errors.InvalidResetToken` if the token was never issued, has
     already been redeemed, or has expired.
 
     The password change and each device's revocation are separate writes, not one transaction -

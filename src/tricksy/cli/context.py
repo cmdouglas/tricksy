@@ -3,7 +3,7 @@
 Two things every command handler needs, factored out so a handler is little more than "build a
 body, call the client, emit the response":
 
-- :func:`build_client` turns ``--profile``/``T42_PROFILE`` into an authenticated ``ApiClient``.
+- :func:`build_client` turns ``--profile``/``TRICKSY_PROFILE`` into an authenticated ``ApiClient``.
 - :func:`emit` is the ``--json``-vs-text split every handler needs, since ``render.py`` promises
   ``--json`` never reaches it (see that module's docstring) - this is where that promise is kept.
 
@@ -20,8 +20,8 @@ import json as jsonlib
 from collections.abc import Callable
 from typing import Any
 
-from t42.cli import config
-from t42.cli.api import ApiClient, ApiError, HttpTransport, Transport
+from tricksy.cli import config
+from tricksy.cli.api import ApiClient, ApiError, HttpTransport, Transport
 
 transport_factory: Callable[[str], Transport] = HttpTransport
 
@@ -29,7 +29,7 @@ transport_factory: Callable[[str], Transport] = HttpTransport
 def build_client(
     args: argparse.Namespace, *, require_auth: bool = True
 ) -> tuple[ApiClient, config.Profile | None]:
-    """The profile named by ``--profile``/``T42_PROFILE``, defaulting to ``"default"`` so a solo
+    """The profile named by ``--profile``/``TRICKSY_PROFILE``, defaulting to ``"default"`` so a solo
     user never has to pass it - the 4-profile dogfood milestone still works, since seats 2-4 can't
     all be ``"default"`` and so must pass ``--profile`` by construction.
 
@@ -43,7 +43,7 @@ def build_client(
     profile = config.get_profile(cfg, profile_name)
     if require_auth and profile is None:
         raise ApiError(
-            0, "NOT_AUTHENTICATED", f"no profile {profile_name!r} - run `t42 login` first"
+            0, "NOT_AUTHENTICATED", f"no profile {profile_name!r} - run `tricksy login` first"
         )
     token = profile.token if profile is not None else None
     client = ApiClient(transport_factory(args.api_url), token=token)

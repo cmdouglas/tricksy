@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from t42.cli import config
+from tricksy.cli import config
 
 
 def test_load_missing_file_returns_default_config(tmp_path: Path) -> None:
@@ -21,7 +21,7 @@ def test_config_path_honours_xdg_config_home(
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
-    assert config.config_path() == tmp_path / "t42" / "config.json"
+    assert config.config_path() == tmp_path / "tricksy" / "config.json"
 
 
 def test_config_path_falls_back_to_dot_config_when_xdg_unset(
@@ -30,7 +30,7 @@ def test_config_path_falls_back_to_dot_config_when_xdg_unset(
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
-    assert config.config_path() == tmp_path / ".config" / "t42" / "config.json"
+    assert config.config_path() == tmp_path / ".config" / "tricksy" / "config.json"
 
 
 def test_save_creates_missing_parent_directory(tmp_path: Path) -> None:

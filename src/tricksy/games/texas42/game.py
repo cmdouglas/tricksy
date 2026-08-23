@@ -1,7 +1,7 @@
 """Engine entry points (DESIGN.md §3): state + proposed move in, new state or error out.
 
-Handlers call only this module and :mod:`t42.engine.projection`; everything else is internal to
-the engine.
+Handlers call only this module and :mod:`tricksy.games.texas42.projection`; everything else is
+internal to the engine.
 """
 
 from __future__ import annotations
@@ -68,8 +68,8 @@ def apply_move(state: GameState, move: Move, *, rng: Random) -> GameState:
     current phase, then deals the next hand (or ends the game) if that move just completed one.
     ``rng`` is only consulted when a new hand needs dealing; it is required unconditionally so a
     single call always fully resolves the state, matching the injected-randomness rule everywhere
-    else in the engine. Raises :class:`~t42.engine.errors.RulesError` on any rejection; the caller
-    persists the resulting state only when this returns.
+    else in the engine. Raises :class:`~tricksy.games.texas42.errors.RulesError` on any rejection;
+    the caller persists the resulting state only when this returns.
     """
     if state.phase is Phase.BIDDING:
         state = _apply_bidding_move(state, move)
@@ -210,11 +210,12 @@ def _complete_hand(state: GameState, rng: Random) -> GameState:
 def _deal_hand(config: HouseRules, dealer: Seat, rng: Random) -> HandState:
     """One shuffle, then seven tiles per seat in ``Seat`` order.
 
-    **That shape is depended on outside the engine.** ``t42.storage.replay`` reconstructs a game by
-    handing a recorded deal back through ``rng.shuffle``, which works only because this deals with
-    exactly one ``shuffle`` call per hand and slices the result in ``Seat`` order. Dealing any other
-    way - two shuffles, tile-by-tile draws, a different seat order - would not raise anywhere; it
-    would make replay silently rebuild a different game. Change that module in step with this one.
+    **That shape is depended on outside the engine.** ``tricksy.storage.replay`` reconstructs a game
+    by handing a recorded deal back through ``rng.shuffle``, which works only because this deals
+    with exactly one ``shuffle`` call per hand and slices the result in ``Seat`` order. Dealing any
+    other way - two shuffles, tile-by-tile draws, a different seat order - would not raise anywhere;
+    it would make replay silently rebuild a different game. Change that module in step with this
+    one.
     """
     tiles = list(FULL_SET)
     rng.shuffle(tiles)

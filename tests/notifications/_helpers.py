@@ -1,7 +1,7 @@
 """Shared test doubles for ``tests/notifications/`` (ROADMAP.md 4.1), mirroring the
 ``tests/cli/_helpers.py`` / ``FakeTransport`` convention of a per-package recording fake.
 
-``FakeSender`` implements ``t42.notifications.sender.EmailSender`` without any network, and
+``FakeSender`` implements ``tricksy.notifications.sender.EmailSender`` without any network, and
 records every send so a test can assert on ``to``/``subject``/``body``.
 """
 

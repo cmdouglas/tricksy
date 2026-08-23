@@ -26,8 +26,8 @@ from typing import Final
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from t42.engine.errors import IllegalMove, OutOfTurn, RulesError, UnknownContract
-from t42.storage.errors import (
+from tricksy.games.texas42.errors import IllegalMove, OutOfTurn, RulesError, UnknownContract
+from tricksy.storage.errors import (
     AlreadySeated,
     ContactAlreadyExists,
     ContactNotFound,

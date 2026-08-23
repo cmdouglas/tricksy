@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from t42.engine.dominoes import FULL_SET, MAX_PIPS, Domino, parse
+from tricksy.games.texas42.dominoes import FULL_SET, MAX_PIPS, Domino, parse
 
 dominoes = st.sampled_from(FULL_SET)
 

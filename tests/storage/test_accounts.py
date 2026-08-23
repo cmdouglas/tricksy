@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.storage.accounts import (
+from tricksy.storage.accounts import (
     ContactChannel,
     add_contact,
     authenticate,
@@ -25,7 +25,7 @@ from t42.storage.accounts import (
     revoke_token,
     set_contact_notify,
 )
-from t42.storage.errors import (
+from tricksy.storage.errors import (
     ContactAlreadyExists,
     ContactNotFound,
     InvalidCredentials,

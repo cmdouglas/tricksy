@@ -1,7 +1,7 @@
 """The engine's input alphabet: what a player can propose.
 
-A move is what a client submits (DESIGN.md §6); an :mod:`t42.engine.events` event is what the
-engine appends once a move is accepted.
+A move is what a client submits (DESIGN.md §6); an :mod:`tricksy.games.texas42.events` event is what
+the engine appends once a move is accepted.
 """
 
 from __future__ import annotations

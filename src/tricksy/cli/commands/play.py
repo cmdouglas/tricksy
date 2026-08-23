@@ -27,9 +27,9 @@ import re
 import sys
 from typing import Any
 
-from t42.cli import render
-from t42.cli.command import Command
-from t42.cli.context import build_client, emit
+from tricksy.cli import render
+from tricksy.cli.command import Command
+from tricksy.cli.context import build_client, emit
 
 _MARKS_RE = re.compile(r"^(\d+)-marks?$")
 

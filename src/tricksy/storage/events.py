@@ -1,12 +1,12 @@
 """Translates accepted moves (and the deals they trigger) into the events that get appended to
 the log (ROADMAP.md 1.2). ``event_for_move`` and ``hand_dealt_event`` are the write-direction
-counterpart to ``replay``'s ``_move_for_event``: nothing in ``t42.engine`` constructs an
+counterpart to ``replay``'s ``_move_for_event``: nothing in ``tricksy.games.texas42`` constructs an
 ``Event`` itself, so this is where a move becomes the record of what happened.
 """
 
 from __future__ import annotations
 
-from t42.engine.events import (
+from tricksy.games.texas42.events import (
     BidConfirmed,
     BidPlaced,
     ContractDeclared,
@@ -15,8 +15,15 @@ from t42.engine.events import (
     HandDealt,
     Passed,
 )
-from t42.engine.moves import ConfirmBid, DeclareContract, Move, Pass, PlaceBid, PlayDomino
-from t42.engine.state import GameState, HandState, Seat
+from tricksy.games.texas42.moves import (
+    ConfirmBid,
+    DeclareContract,
+    Move,
+    Pass,
+    PlaceBid,
+    PlayDomino,
+)
+from tricksy.games.texas42.state import GameState, HandState, Seat
 
 
 def event_for_move(state: GameState, move: Move) -> Event:

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from t42.notifications.messages import (
+from tricksy.notifications.messages import (
     render_game_over,
     render_invite,
     render_password_reset,

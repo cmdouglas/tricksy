@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from t42.cli import config, context
-from t42.cli.command import Command
-from t42.cli.commands import rules
+from tricksy.cli import config, context
+from tricksy.cli.command import Command
+from tricksy.cli.commands import rules
 
 from ._helpers import fake_transport
 

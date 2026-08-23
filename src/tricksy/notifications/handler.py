@@ -6,11 +6,11 @@ Watches ``PLAYER#<playerId>`` item transitions for the three things worth an ema
 ``INVITE#<gameId>`` item ("you've been invited"). :func:`notifications_for` is the pure
 classifier - decoded records in, a plain list of what needs to happen out, no I/O - and
 :func:`send_notifications` is everything that follows: dedup, recipient resolution, rendering and
-sending. This split is what :mod:`t42.notifications.pump` (ROADMAP.md 4.4) was already built
+sending. This split is what :mod:`tricksy.notifications.pump` (ROADMAP.md 4.4) was already built
 to hand a Lambda-shaped batch to, and what makes "the notifier cannot see a hand" a fact enforced
 by :mod:`tests.notifications.test_layering` rather than an audited claim: this module may import
-``t42.storage.accounts`` and nothing else from ``t42.storage``, and nothing at all from
-``t42.engine``, so it never reaches ``STATE`` and never sees a ``GameState``.
+``tricksy.storage.accounts`` and nothing else from ``tricksy.storage``, and nothing at all from
+``tricksy.games.texas42``, so it never reaches ``STATE`` and never sees a ``GameState``.
 """
 
 from __future__ import annotations
@@ -26,16 +26,16 @@ import boto3
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.storage.accounts import Player, get_player
+from tricksy.storage.accounts import Player, get_player
 
 from .messages import render_game_over, render_invite, render_your_turn
 from .records import transition_from_record
 from .sender import EmailSender, get_sender
 
-#: Same env vars t42.api.deps and t42.notifications.pump read, so a shell already set up for one
-#: needs nothing extra to run this too.
-TABLE_NAME_ENV = "T42_TABLE_NAME"
-ENDPOINT_URL_ENV = "T42_DYNAMODB_ENDPOINT"
+#: Same env vars tricksy.api.deps and tricksy.notifications.pump read, so a shell already set up for
+#: one needs nothing extra to run this too.
+TABLE_NAME_ENV = "TRICKSY_TABLE_NAME"
+ENDPOINT_URL_ENV = "TRICKSY_DYNAMODB_ENDPOINT"
 
 NotificationKind = Literal["your_turn", "game_over", "invite"]
 
@@ -153,7 +153,7 @@ def _claim(table: Table, notification: Notification) -> bool:
 
 
 def _read_scores(table: Table, game_id: str) -> dict[str, int]:
-    """Reads META directly - a raw single-item read, not a t42.storage.repository import - since
+    """Reads META directly - a raw single-item read, not a tricksy.storage.repository import - since
     this is the one item the notifier is allowed to enrich from (DESIGN.md §8). Defaults to an
     empty map rather than raising: by the time this runs, `_claim` has already succeeded, so this
     transition will never be retried, and a degraded email beats a silently dropped one.

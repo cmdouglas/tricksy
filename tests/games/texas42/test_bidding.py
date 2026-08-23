@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from t42.engine.bidding import apply_bid, apply_confirmation, legal_bids
-from t42.engine.dominoes import Domino
-from t42.engine.errors import IllegalMove, OutOfTurn
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import ConfirmBid, Pass, PlaceBid
-from t42.engine.state import Bid, Phase, Seat
+from tricksy.games.texas42.bidding import apply_bid, apply_confirmation, legal_bids
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.errors import IllegalMove, OutOfTurn
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import ConfirmBid, Pass, PlaceBid
+from tricksy.games.texas42.state import Bid, Phase, Seat
 
 from ._helpers import custom_deal, deal, make_game, player_of
 

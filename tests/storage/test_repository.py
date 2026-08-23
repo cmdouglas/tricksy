@@ -8,18 +8,18 @@ from random import Random
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.events import Event
-from t42.engine.game import apply_move, legal_moves
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move
-from t42.engine.state import GameState, Seat, Team
-from t42.storage.errors import GameAlreadyExists, GameNotFound, VersionConflict
-from t42.storage.events import events_for_move, hand_dealt_event
-from t42.storage.lobby import create_pending_game
-from t42.storage.replay import replay
-from t42.storage.repository import append, get_state
+from tricksy.games.texas42.events import Event
+from tricksy.games.texas42.game import apply_move, legal_moves
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move
+from tricksy.games.texas42.state import GameState, Seat, Team
+from tricksy.storage.errors import GameAlreadyExists, GameNotFound, VersionConflict
+from tricksy.storage.events import events_for_move, hand_dealt_event
+from tricksy.storage.lobby import create_pending_game
+from tricksy.storage.replay import replay
+from tricksy.storage.repository import append, get_state
 
-from ..engine._helpers import PLAYERS, drive_to_game_over, prefer_contract
+from ..games.texas42._helpers import PLAYERS, drive_to_game_over, prefer_contract
 from ._helpers import started_game
 
 

@@ -58,7 +58,8 @@ def legal_bids(state: GameState) -> tuple[Bid, ...]:
 def apply_bid(state: GameState, move: PlaceBid | Pass) -> GameState:
     """Validate and apply a bid or pass, advancing the auction.
 
-    Raises :class:`~t42.engine.errors.OutOfTurn` or :class:`~t42.engine.errors.IllegalMove`.
+    Raises :class:`~tricksy.games.texas42.errors.OutOfTurn` or
+    :class:`~tricksy.games.texas42.errors.IllegalMove`.
     """
     hand = state.hand
     assert hand is not None and state.to_act is not None

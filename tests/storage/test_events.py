@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from t42.engine.events import (
+from tricksy.games.texas42.events import (
     BidConfirmed,
     BidPlaced,
     ContractDeclared,
@@ -14,12 +14,19 @@ from t42.engine.events import (
     Event,
     Passed,
 )
-from t42.engine.moves import ConfirmBid, DeclareContract, Move, Pass, PlaceBid, PlayDomino
-from t42.engine.state import GameState, HandState, Phase, Seat
-from t42.engine.suits import Suit
-from t42.storage.events import event_for_move, events_for_move, hand_dealt_event
+from tricksy.games.texas42.moves import (
+    ConfirmBid,
+    DeclareContract,
+    Move,
+    Pass,
+    PlaceBid,
+    PlayDomino,
+)
+from tricksy.games.texas42.state import GameState, HandState, Phase, Seat
+from tricksy.games.texas42.suits import Suit
+from tricksy.storage.events import event_for_move, events_for_move, hand_dealt_event
 
-from ..engine._helpers import deal, make_game
+from ..games.texas42._helpers import deal, make_game
 
 _HANDS = deal(0)
 _FIRST_DOMINO = _HANDS[Seat.NORTH][0]

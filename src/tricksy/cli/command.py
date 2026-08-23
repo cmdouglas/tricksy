@@ -1,8 +1,8 @@
 """The ``Command`` shape ``main.py``'s dispatch table is built from (ROADMAP.md 3.1, 3.4).
 
-Split out from ``main.py`` so ``t42.cli.commands.*`` can build ``Command`` values without
+Split out from ``main.py`` so ``tricksy.cli.commands.*`` can build ``Command`` values without
 importing ``main.py`` itself, which would be circular: ``main.py`` is what assembles
-``t42.cli.commands.COMMANDS`` into its dispatch table.
+``tricksy.cli.commands.COMMANDS`` into its dispatch table.
 """
 
 from __future__ import annotations

@@ -4,9 +4,9 @@ import argparse
 
 import pytest
 
-from t42.cli import context
-from t42.cli.command import Command
-from t42.cli.commands import play
+from tricksy.cli import context
+from tricksy.cli.command import Command
+from tricksy.cli.commands import play
 
 from ._helpers import fake_transport
 
@@ -65,7 +65,7 @@ def _parse(
 
 @pytest.fixture(autouse=True)
 def _config_home(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
-    from t42.cli import config
+    from tricksy.cli import config
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     cfg = config.set_profile(config.Config(), "default", config.Profile("p1", "alice", "tok-1"))

@@ -13,14 +13,14 @@ One item type, in the same single table as everything else (DESIGN.md §4.1):
     of its own.
 
 **Applying a set copies it.** Nothing here enforces that; it falls out of
-``t42.storage.lobby.create_pending_game`` writing ``META.config`` from the resolved ``HouseRules``
-value rather than a reference to this item, so a game's rules survive a later edit or delete of the
-set it was created from (DESIGN.md §5.1) - a guarantee proved at the API layer, where a game is
-actually created from a saved set.
+``tricksy.storage.lobby.create_pending_game`` writing ``META.config`` from the resolved
+``HouseRules`` value rather than a reference to this item, so a game's rules survive a later edit
+or delete of the set it was created from (DESIGN.md §5.1) - a guarantee proved at the API layer,
+where a game is actually created from a saved set.
 
-**Validated on save**, through the same :func:`t42.engine.contracts.validate_house_rules` that
-guards game creation - the reasoning matches the lobby's: an incoherent set that only fails at the
-table is a trap saved weeks earlier and since forgotten.
+**Validated on save**, through the same :func:`tricksy.games.texas42.contracts.validate_house_rules`
+that guards game creation - the reasoning matches the lobby's: an incoherent set that only fails at
+the table is a trap saved weeks earlier and since forgotten.
 
 **The id is opaque and the display name is not unique.** Same argument as ``PlayerId`` (DESIGN.md
 §12): keying on the name would make renaming a delete-and-recreate. A player keeps a handful of
@@ -39,10 +39,10 @@ from typing import Any, Final
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine import GAME_KIND
-from t42.engine.contracts import validate_house_rules
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import PlayerId
+from tricksy.games.texas42 import GAME_KIND
+from tricksy.games.texas42.contracts import validate_house_rules
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import PlayerId
 
 from ._dynamo import as_text, from_dynamo
 from .codec import decode_house_rules, encode_house_rules
@@ -124,7 +124,7 @@ def create_rule_set(
 
 
 def get_rule_set(table: Table, player_id: PlayerId, rule_set_id: str) -> RuleSet:
-    """Raises :class:`~t42.storage.errors.RuleSetNotFound` if ``player_id`` holds no such set."""
+    """Raises :class:`.errors.RuleSetNotFound` if ``player_id`` holds no such set."""
     item = table.get_item(Key={"PK": _player_pk(player_id), "SK": _rule_set_sk(rule_set_id)}).get(
         "Item"
     )

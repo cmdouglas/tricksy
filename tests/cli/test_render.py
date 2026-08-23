@@ -6,13 +6,13 @@ from typing import Any
 
 import pytest
 
-from t42.cli import render
-from t42.engine.game import new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.projection import project
-from t42.engine.state import GameState, Seat
+from tricksy.cli import render
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.projection import project
+from tricksy.games.texas42.state import GameState, Seat
 
-from ..engine._helpers import PLAYERS, drive_to_game_over, player_of, prefer_contract
+from ..games.texas42._helpers import PLAYERS, drive_to_game_over, player_of, prefer_contract
 
 # --- seat / suit name tables -------------------------------------------------
 
@@ -53,34 +53,34 @@ def test_suit_name(suit: int | None, expected: str) -> None:
 _MOVE_CASES: tuple[tuple[dict[str, Any], str], ...] = (
     (
         {"kind": "BID", "contract": None, "points": 32, "marks": None},
-        "t42 bid ABCD 32",
+        "tricksy bid ABCD 32",
     ),
     (
         {"kind": "BID", "contract": "nello", "points": None, "marks": 2},
-        "t42 bid ABCD 2-marks --contract nello",
+        "tricksy bid ABCD 2-marks --contract nello",
     ),
     (
         {"kind": "BID", "contract": None, "points": None, "marks": 1},
-        "t42 bid ABCD 1-mark",
+        "tricksy bid ABCD 1-mark",
     ),
-    ({"kind": "PASS"}, "t42 bid ABCD pass"),
-    ({"kind": "CONFIRM_BID", "accept": True}, "t42 bid ABCD confirm"),
-    ({"kind": "CONFIRM_BID", "accept": False}, "t42 bid ABCD decline"),
+    ({"kind": "PASS"}, "tricksy bid ABCD pass"),
+    ({"kind": "CONFIRM_BID", "accept": True}, "tricksy bid ABCD confirm"),
+    ({"kind": "CONFIRM_BID", "accept": False}, "tricksy bid ABCD decline"),
     (
         {"kind": "DECLARE_CONTRACT", "trump": 5},
-        "t42 declare ABCD trump=fives",
+        "tricksy declare ABCD trump=fives",
     ),
     (
         {"kind": "DECLARE_CONTRACT", "trump": None},
-        "t42 declare ABCD trump=none",
+        "tricksy declare ABCD trump=none",
     ),
     (
         {"kind": "PLAY_DOMINO", "domino": "4-1", "declared_suit": None},
-        "t42 play ABCD 4-1",
+        "tricksy play ABCD 4-1",
     ),
     (
         {"kind": "PLAY_DOMINO", "domino": "6-3", "declared_suit": 3},
-        "t42 play ABCD 6-3 --declare treys",
+        "tricksy play ABCD 6-3 --declare treys",
     ),
 )
 
@@ -107,7 +107,7 @@ def test_legal_moves_renders_one_line_per_move() -> None:
     ]
     result = render.render_legal_moves(moves, "ABCD")
     lines = result.splitlines()
-    assert lines == ["  t42 bid ABCD pass", "  t42 bid ABCD 30"]
+    assert lines == ["  tricksy bid ABCD pass", "  tricksy bid ABCD 30"]
 
 
 # --- render_game: lobby-only ---------------------------------------------------
@@ -208,8 +208,9 @@ def test_seated_marks_the_callers_own_seat() -> None:
 def test_game_over_view_with_no_current_hand_does_not_crash() -> None:
     """Every response to the move that ends a game looks like this: ``phase`` flips to
     ``GAME_OVER`` and ``hand``/``current_trick``/``dealer``/``declarer``/``contract``/``trump``/
-    ``to_act`` all go back to ``None`` (``t42.engine.projection.project`` has no hand left to read
-    them from) - a real, reachable shape every completed game hits, not an edge case."""
+    ``to_act`` all go back to ``None`` (``tricksy.games.texas42.projection.project`` has no hand
+    left to read them from) - a real, reachable shape every completed game hits, not an edge
+    case."""
     view = _view(
         phase="GAME_OVER",
         dealer=None,
@@ -235,9 +236,9 @@ def test_bidding_phase_renders_legal_bids_as_commands() -> None:
         ]
     )
     result = render.render_game(_seated_game(view))
-    assert "t42 bid ABCD 30" in result
-    assert "t42 bid ABCD 2-marks --contract nello" in result
-    assert "t42 bid ABCD pass" in result
+    assert "tricksy bid ABCD 30" in result
+    assert "tricksy bid ABCD 2-marks --contract nello" in result
+    assert "tricksy bid ABCD pass" in result
 
 
 def test_playing_phase_partial_trick_with_declared_suit() -> None:
@@ -261,7 +262,7 @@ def test_playing_phase_partial_trick_with_declared_suit() -> None:
     assert "completed tricks: 3" in result
     assert "trump: fives" in result
     assert "declarer: north" in result
-    assert "t42 play ABCD 4-1" in result
+    assert "tricksy play ABCD 4-1" in result
 
 
 def test_no_trump_contract_renders_prose_no_trump() -> None:
@@ -294,8 +295,8 @@ def test_declare_contract_confirmation_only_legal_moves() -> None:
         ]
     )
     result = render.render_game(_seated_game(view))
-    assert "t42 bid ABCD confirm" in result
-    assert "t42 bid ABCD decline" in result
+    assert "tricksy bid ABCD confirm" in result
+    assert "tricksy bid ABCD decline" in result
 
 
 # --- games list -----------------------------------------------------------------

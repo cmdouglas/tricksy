@@ -8,7 +8,7 @@ import boto3
 from mypy_boto3_dynamodb.service_resource import Table
 from mypy_boto3_dynamodbstreams.client import DynamoDBStreamsClient
 
-from t42.notifications.pump import poll
+from tricksy.notifications.pump import poll
 
 
 class _SpyHandler:

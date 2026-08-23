@@ -1,10 +1,10 @@
 """Trick play and resolution (DESIGN.md §5).
 
-Legality and the winner are both delegated to the active :class:`~t42.engine.contracts.Contract`
-rather than branched on here - see ``legal_plays``/``trick_winner``. What is genuinely generic to
-every contract is turn order and when a trick/hand closes, which is what ``play`` owns; it counts
-against the *active* seat count (:meth:`Contract.sits_out`), not a hardcoded four, since nello
-plays a hand 3-handed.
+Legality and the winner are both delegated to the active
+:class:`~tricksy.games.texas42.contracts.Contract` rather than branched on here - see
+``legal_plays``/``trick_winner``. What is genuinely generic to every contract is turn order and when
+a trick/hand closes, which is what ``play`` owns; it counts against the *active* seat count
+(:meth:`Contract.sits_out`), not a hardcoded four, since nello plays a hand 3-handed.
 """
 
 from __future__ import annotations

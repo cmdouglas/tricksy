@@ -15,10 +15,10 @@ import pytest
 from fastapi.testclient import TestClient
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.api.app import app
-from t42.api.deps import get_table
-from t42.cli import context
-from t42.cli.main import main
+from tricksy.api.app import app
+from tricksy.api.deps import get_table
+from tricksy.cli import context
+from tricksy.cli.main import main
 
 from ._helpers import play_full_game_via_cli, run_json
 

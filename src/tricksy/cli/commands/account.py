@@ -17,9 +17,9 @@ from __future__ import annotations
 import argparse
 import getpass
 
-from t42.cli import config, render
-from t42.cli.command import Command
-from t42.cli.context import build_client, emit
+from tricksy.cli import config, render
+from tricksy.cli.command import Command
+from tricksy.cli.context import build_client, emit
 
 
 def _add_credential_args(parser: argparse.ArgumentParser) -> None:

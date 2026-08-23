@@ -13,7 +13,7 @@ under "Done" below.
 Goal: a pure library that can run a complete 4-player game in memory, with no network and no AWS.
 All six contracts (standard, nello, nello_low, sevens, plunge, splash) are implemented; a full
 game per contract runs end to end through `new_game`/`apply_move`/`legal_moves` in
-`tests/engine/test_full_game.py`, the Phase 0 milestone demo. The rule-variant decisions this
+`tests/games/texas42/test_full_game.py`, the Phase 0 milestone demo. The rule-variant decisions this
 phase depended on (0.1, below) are recorded in DESIGN.md §12.
 
 ### Done
@@ -45,7 +45,7 @@ tie-breaking, and the dealer-must-bid all-pass rule are all recorded there.
 
 - A whole game runs end to end in memory, for every one of the six contracts
 - Illegal moves raise `RulesError`, never corrupt state (state is immutable throughout; verified)
-- No I/O, no AWS import anywhere under `t42.engine`
+- No I/O, no AWS import anywhere under `tricksy.games.texas42`
 - The rules modules carry the heaviest test investment: scoring boundaries, follow-suit edge
   cases, and a property test that a trick always has exactly one winner
 
@@ -96,7 +96,7 @@ not in the core.
 
 ### 0.5.4 Tests
 
-`tests/engine/test_house_rules.py`:
+`tests/games/texas42/test_house_rules.py`:
 
 - Defaults reproduce current behaviour exactly
 - An override changes which bids `legal_bids` offers
@@ -110,7 +110,7 @@ not in the core.
   minimums, where a hand legal in one is rejected in the other - impossible while the minimum
   lives on the registry singleton
 
-Extend `tests/engine/test_full_game.py` with a full game under non-default house rules.
+Extend `tests/games/texas42/test_full_game.py` with a full game under non-default house rules.
 
 ### 0.5.5 Declared leads
 
@@ -142,7 +142,7 @@ With a defaulted `declared_suit` that still compiles, type-checks and passes eve
 while silently discarding the declaration on the trick that closes, which is the one place it
 decides the winner. Both sites become `replace(hand.current_trick, ...)`.
 
-Tests in `tests/engine/test_declared_leads.py`: `never` reproduces today's behaviour exactly;
+Tests in `tests/games/texas42/test_declared_leads.py`: `never` reproduces today's behaviour exactly;
 `first_trick` permits a declaration on trick 1 and rejects one on trick 2; `always` permits both;
 a declared lead changes which tiles the other seats may legally play, and changes the trick winner
 where the two readings disagree; declaring a suit the tile does not belong to is rejected; a tile
@@ -168,7 +168,7 @@ encodes `HouseRules`, so its shape must be settled first.
 
 ### 1.1 Item shapes and codec
 
-`t42/storage/`, single table per DESIGN.md §4.1 (`META`, `EVENT#<seq>`, `STATE`, `PLAYER#`).
+`tricksy/storage/`, single table per DESIGN.md §4.1 (`META`, `EVENT#<seq>`, `STATE`, `PLAYER#`).
 
 - Encode and decode events, `GameState` and `HouseRules` - including its nested `contract_options`
   map - to plain DynamoDB attribute maps
@@ -245,7 +245,7 @@ the shape of what needs provisioning is settled by working code rather than gues
 
 ### 2.1 Accounts and tokens
 
-`t42/storage/accounts.py`, adding four item types to the existing single table (DESIGN.md §4.1) -
+`tricksy/storage/accounts.py`, adding four item types to the existing single table (DESIGN.md §4.1) -
 no GSI, no second table:
 
 | PK | SK | Purpose |
@@ -273,7 +273,7 @@ no GSI, no second table:
 
 ### 2.2 Lobby
 
-`t42/storage/lobby.py`, plus a rework of `repository.create_game`. The lobby lives entirely in the
+`tricksy/storage/lobby.py`, plus a rework of `repository.create_game`. The lobby lives entirely in the
 storage layer: `META` gains `status` and a partial seats map, and the engine is untouched -
 `new_game` still takes four seats and deals.
 
@@ -297,7 +297,7 @@ storage layer: `META` gains `status` and a partial seats map, and the engine is 
 
 ### 2.3 Schemas and error mapping
 
-`t42/api/schemas.py` and `t42/api/errors.py`.
+`tricksy/api/schemas.py` and `tricksy/api/errors.py`.
 
 - The bid body is a **discriminated union** on `kind` (`BID`/`PASS`/`CONFIRM_BID`), mapping 1:1
   onto the engine's move alphabet. This is where the plunge confirmation lives; §6 lists no
@@ -315,7 +315,7 @@ storage layer: `META` gains `status` and a partial seats map, and the engine is 
 
 ### 2.4 Routes
 
-`t42/api/app.py` and `t42/api/deps.py`: `POST /players`, `POST /sessions`,
+`tricksy/api/app.py` and `tricksy/api/deps.py`: `POST /players`, `POST /sessions`,
 `DELETE /sessions/current`, `GET /players/me`, `POST /games`, `POST /games/{id}/join`,
 `GET /games/{id}`, `GET /players/me/games`, `POST /games/{id}/bid`, `POST /games/{id}/contract`,
 `POST /games/{id}/play`.
@@ -346,12 +346,12 @@ fixture and `_create_texas42_table` move up to a top-level `tests/conftest.py` s
 - Idempotency: the same `Idempotency-Key` twice yields one event and identical responses.
 - **Leakage at the HTTP boundary**: drive a full game through the API and assert that no response
   any of the four players receives contains a tile held by another seat, reusing the structure
-  walker from `tests/engine/test_projection.py`. 1.5 proved this of `project()`; this proves it of
+  walker from `tests/games/texas42/test_projection.py`. 1.5 proved this of `project()`; this proves it of
   what actually goes over the wire.
 
 ### 2.6 Lambda entry point and integration test
 
-`t42/api/lambda_handler.py` is `Mangum(app)` and nothing else. `tests/api/test_api_integration.py`,
+`tricksy/api/lambda_handler.py` is `Mangum(app)` and nothing else. `tests/api/test_api_integration.py`,
 marked `integration`, plays a full scripted 4-player game from signup to `GAME_OVER` against the
 `dynamodb_local` fixture from 1.6.
 
@@ -362,7 +362,7 @@ marked `integration`, plays a full scripted 4-player game from signup to `GAME_O
 - No response any player receives contains another seat's tiles, proven by test rather than
   inspection
 - A duplicate submission with the same idempotency key is a no-op returning the prior result
-- The engine remains pure: nothing under `t42.engine` imports from `t42.api` (invariant 1)
+- The engine remains pure: nothing under `tricksy.games.texas42` imports from `tricksy.api` (invariant 1)
 
 ---
 
@@ -388,7 +388,7 @@ a seat reservation.
 
 ### 2.7.1 Saved rule sets
 
-`t42/storage/rule_sets.py` and one new item type, `PLAYER#<id> / RULESET#<ruleSetId>`, holding a
+`tricksy/storage/rule_sets.py` and one new item type, `PLAYER#<id> / RULESET#<ruleSetId>`, holding a
 display name and the encoded `HouseRules`.
 
 - `create_rule_set`, `get_rule_set`, `list_rule_sets`, `update_rule_set`, `delete_rule_set`, plus a
@@ -415,7 +415,7 @@ Self-contained and changes no existing behaviour, so it goes first.
   which is exactly today's behaviour, so the existing suite must pass unchanged. `get_lobby` reads
   the attribute directly with no `.get()` fallback, matching the codec's stance that a new field is
   a migration point; nothing is deployed, so there is no data to migrate.
-- `t42/storage/invites.py`: the `GAME#/INVITE#` and `PLAYER#/INVITE#` pair written and deleted in
+- `tricksy/storage/invites.py`: the `GAME#/INVITE#` and `PLAYER#/INVITE#` pair written and deleted in
   one `transact_write`, plus `invite_player`, `find_invite`, `list_invites_for_player`,
   `revoke_invite`. `invite_player` is idempotent - re-inviting overwrites and returns, since clients
   retry.
@@ -494,8 +494,8 @@ view and nothing else.
 Read DESIGN.md §7 first; it settles the shape and this section sequences it. Three decisions from
 there govern everything below:
 
-- **The CLI is a client, not a component.** Nothing under `t42.cli` imports `t42.engine`,
-  `t42.storage` or boto3, and it derives nothing the server already tells it - no computing whose
+- **The CLI is a client, not a component.** Nothing under `tricksy.cli` imports `tricksy.games.texas42`,
+  `tricksy.storage` or boto3, and it derives nothing the server already tells it - no computing whose
   turn it is, no deciding whether a move is legal. Both halves are enforced by test (3.7), because
   an unenforced layering rule is a layering rule that lasts until the first convenient import.
 - **stdlib `argparse`**, and one runtime dependency (an HTTP client) in a new `cli` optional extra.
@@ -515,7 +515,7 @@ practically revoked, and a lobby cannot show who is pending.
   `username` (`invites.py`), because the pair was designed for both directions.
 - `GET /games/{game_id}/invites`, seated callers only, reusing `_require_seat` - the same gate
   `POST .../invites` already applies, and for the reason DESIGN.md §6.2 gives.
-- `t42 uninvite <code> <username>` then resolves a name to an id through it. The alternative -
+- `tricksy uninvite <code> <username>` then resolves a name to an id through it. The alternative -
   making the user paste a player id out of earlier terminal output - is what a CLI exists to avoid.
 
 First, for the same reason Phase 2.7 preceded Phase 3 at all: the command set gets written once
@@ -523,23 +523,23 @@ against a finished surface rather than grown into one.
 
 ### 3.1 Skeleton, profiles and credentials
 
-`src/t42/cli/`, plus `[project.scripts] t42 = "t42.cli.main:main"`.
+`src/tricksy/cli/`, plus `[project.scripts] tricksy = "tricksy.cli.main:main"`.
 
 - `main.py`: `main(argv: list[str] | None = None) -> int`, one `argparse` subparser table, one
   dispatch. It **returns** an exit code for every expected failure rather than raising, so a command
   is a function a test can call and the process boundary carries no logic.
-- `config.py`: `~/.config/t42/config.json` (honouring `XDG_CONFIG_HOME`), written `0600` through a
+- `config.py`: `~/.config/tricksy/config.json` (honouring `XDG_CONFIG_HOME`), written `0600` through a
   temp-file-and-rename so an interrupted write cannot leave a client with no credentials. Holds the
   API base URL and a map of named profiles, each `{player_id, username, token}`.
 - **Profiles are load-bearing.** The milestone at the end of this phase is one person playing four
-  seats from one machine; without `--profile` / `T42_PROFILE` that means four home directories.
-- Global flags on every command: `--api-url` (`T42_API_URL`), `--profile`, `--json`.
+  seats from one machine; without `--profile` / `TRICKSY_PROFILE` that means four home directories.
+- Global flags on every command: `--api-url` (`TRICKSY_API_URL`), `--profile`, `--json`.
 
 ### 3.2 HTTP client and exit codes
 
 - `api.py`: base URL plus bearer token, `Idempotency-Key` on the three move endpoints, and the
   `{"error": {"code", "message"}}` envelope decoded into a typed `ApiError` carrying the `code`.
-  That symbol is the contract - `t42/api/errors.py` says in its own docstring that it exists for
+  That symbol is the contract - `tricksy/api/errors.py` says in its own docstring that it exists for
   this client - so nothing here branches on a status code or on message prose.
 - The client is reached through a narrow `Transport` protocol (`send(method, path, json, headers)`)
   with the real implementation beside it. The indirection earns its place on a concrete blocker, not
@@ -578,12 +578,12 @@ is in DESIGN.md §7 and is the checklist for this step.
 
 `status`, `games`, `bid`, `declare`, `play`.
 
-- `t42 bid <code> 32 | pass | 2-marks --contract nello | confirm | decline`: five spellings, one
+- `tricksy bid <code> 32 | pass | 2-marks --contract nello | confirm | decline`: five spellings, one
   endpoint, mapping onto the `kind`-discriminated body. The plunge confirmation rides here for the
   same reason it rides on `/bid` (DESIGN.md §6).
-- `t42 declare <code> trump=fives | trump=doubles | trump=none`, the last being the no-trump case
+- `tricksy declare <code> trump=fives | trump=doubles | trump=none`, the last being the no-trump case
   nello and sevens need.
-- `t42 play <code> 4-1 [--declare treys]`, the flag being a declared lead (DESIGN.md §5.2).
+- `tricksy play <code> 4-1 [--declare treys]`, the flag being a declared lead (DESIGN.md §5.2).
 - Suit and seat names are parsed and printed from the CLI's own label tables, never from the engine
   enums. Aliases stay accepted on input (`5` for `fives`) because a player typing a bid should not
   have to know which spelling the wire uses.
@@ -593,12 +593,12 @@ is in DESIGN.md §7 and is the checklist for this step.
 The one piece of non-CLI code in the phase. The table definition currently exists only inside
 `tests/conftest.py: _create_texas42_table`, so there is no way to create it outside a test run.
 
-- Promote it to `src/t42/storage/schema.py` - `create_table(dynamodb, name)` plus a
-  `python -m t42.storage.schema` entry point - and have `tests/conftest.py` import it. Both fixtures
+- Promote it to `src/tricksy/storage/schema.py` - `create_table(dynamodb, name)` plus a
+  `python -m tricksy.storage.schema` entry point - and have `tests/conftest.py` import it. Both fixtures
   keep building from one definition, which is the property 2.7.3 wanted when it put the `OpenGames`
   index in the shared helper; this just widens "shared" to include a local run.
 - README gets the three lines: start DynamoDB Local, create the table, run `uvicorn`.
-- The helper lives in `t42.storage` and not in a `t42 dev` subcommand, because the CLI may not
+- The helper lives in `tricksy.storage` and not in a `tricksy dev` subcommand, because the CLI may not
   import boto3 (3.7 checks).
 
 ### 3.7 Tests
@@ -614,7 +614,7 @@ The one piece of non-CLI code in the phase. The table definition currently exist
 - `test_commands.py` - `main(argv)` end to end, transport pointed at `TestClient(app)` with the moto
   `table` injected through `app.dependency_overrides`. Every command's happy path, and the error
   paths that earn each exit code in DESIGN.md §7.2.
-- `test_layering.py` - no module under `t42.cli` imports `t42.engine`, `t42.storage` or boto3.
+- `test_layering.py` - no module under `tricksy.cli` imports `tricksy.games.texas42`, `tricksy.storage` or boto3.
   Cheap, and it is the whole difference between DESIGN.md §11 being a claim and being a fact.
 - `tests/cli/test_cli_integration.py`, marked `integration` - four profiles play a full 4-player
   game to `GAME_OVER` through CLI commands against DynamoDB Local. This is the scripted end-to-end
@@ -624,7 +624,7 @@ The one piece of non-CLI code in the phase. The table definition currently exist
 
 - Every endpoint in DESIGN.md §6 is reachable from a command, and a full 4-player game plays start
   to `GAME_OVER` through the CLI alone
-- Nothing under `t42.cli` imports `t42.engine`, `t42.storage` or boto3, proven by test
+- Nothing under `tricksy.cli` imports `tricksy.games.texas42`, `tricksy.storage` or boto3, proven by test
 - No rendered output ever shows a tile another seat holds, proven by test
 - Every documented failure exits with its documented code, and an unknown server code exits `1`
 - Four profiles play from one machine without interfering, which is also the dogfood milestone
@@ -657,7 +657,7 @@ DESIGN.md and has to be settled before any code is written.
   construction rather than by audit, and 4.7 makes that a test rather than a claim.
 
 - **It runs locally**, the same answer 3.6 gave for the API. DynamoDB Local implements the Streams
-  API, so `python -m t42.notifications.pump` polls the stream and hands the handler batches shaped
+  API, so `python -m tricksy.notifications.pump` polls the stream and hands the handler batches shaped
   exactly like a Lambda `Records` event, and SES is one implementation of a narrow sender protocol
   sitting beside a console one. The AWS-side wiring - event-source mapping, SES identity, IAM - is
   Phase 5's deployment work, and none of this phase's code changes when it lands.
@@ -676,17 +676,17 @@ DESIGN.md and has to be settled before any code is written.
 
 ### 4.1 The send channel
 
-New top-level package `src/t42/notifications/`. It may import `t42.storage.accounts` and boto3; it
-may not import `t42.engine`, nor `t42.storage`'s `repository`, `codec` or `replay` - the import
+New top-level package `src/tricksy/notifications/`. It may import `tricksy.storage.accounts` and boto3; it
+may not import `tricksy.games.texas42`, nor `tricksy.storage`'s `repository`, `codec` or `replay` - the import
 rule that makes "cannot see a hand" checkable (4.7).
 
 - `sender.py`: an `EmailSender` protocol - `send(to, subject, body) -> None` - with `SesSender`
   over boto3 `sesv2`, `ConsoleSender` for a local run, and a recording fake for tests. Chosen by
-  environment variable, the same shape `t42.api.deps` already uses for the table handle. A protocol
+  environment variable, the same shape `tricksy.api.deps` already uses for the table handle. A protocol
   rather than a function so DESIGN.md §11's claim holds here too: SMS or a chat DM is another
   implementation, not a rewrite.
 - `messages.py`: pure `dict -> (subject, body)` renderers, plain text, one per notification kind.
-  Same "no I/O, no client library, table-testable" property `t42/cli/render.py` has, and for the
+  Same "no I/O, no client library, table-testable" property `tricksy/cli/render.py` has, and for the
   same reason - the interesting part of a message is its content, and content should be assertable
   without a transport.
 
@@ -703,7 +703,7 @@ rule that makes "cannot see a hand" checkable (4.7).
 - Endpoints: `POST`/`GET /players/me/contacts`, `PATCH /players/me/contacts/{address}` (the mute),
   `DELETE /players/me/contacts/{address}`, `POST /players/me/contacts/{address}/verification`, and
   `POST /contacts/verify`. The last is unauthenticated: the token *is* the credential, and it
-  arrives in an email the player may open on a device that has never run `t42 login`.
+  arrives in an email the player may open on a device that has never run `tricksy login`.
 
 ### 4.3 Password reset
 
@@ -731,9 +731,9 @@ rule that makes "cannot see a hand" checkable (4.7).
   resource-level `Table` API hands back everywhere else in this codebase - the one place that gap
   is visible. One `boto3.dynamodb.types.TypeDeserializer` pass plus a typed `Transition(old, new)`,
   so 4.5's rules are written against plain data and can be tested without a stream.
-- `pump.py`: `python -m t42.notifications.pump` polls the local stream and calls the handler with a
+- `pump.py`: `python -m tricksy.notifications.pump` polls the local stream and calls the handler with a
   Lambda-shaped `{"Records": [...]}` batch, so the local path and the deployed path exercise the
-  same entry point. Same `python -m` precedent as `t42.storage.schema`.
+  same entry point. Same `python -m` precedent as `tricksy.storage.schema`.
 
 ### 4.5 The handler
 
@@ -757,8 +757,8 @@ rule that makes "cannot see a hand" checkable (4.7).
 
 ### 4.6 CLI commands
 
-`src/t42/cli/commands/account.py`, following 3.4's pattern with no new machinery: `t42 contacts`,
-`t42 contact add|remove|verify|confirm|mute|unmute`, `t42 forgot-password`, `t42 reset-password`.
+`src/tricksy/cli/commands/account.py`, following 3.4's pattern with no new machinery: `tricksy contacts`,
+`tricksy contact add|remove|verify|confirm|mute|unmute`, `tricksy forgot-password`, `tricksy reset-password`.
 DESIGN.md §7's command table gets the matching rows in the same pass, since that table is the
 statement that every endpoint is reachable from a command.
 
@@ -776,8 +776,8 @@ at all.
   exactly once, a duplicate record sends nothing, an unverified or muted or absent channel sends
   nothing, and a `PLAYER#` record whose watched attribute did not change is ignored.
 - `test_layering.py` - the `ast` check from `tests/cli/test_layering.py`, retargeted: nothing under
-  `t42.notifications` imports `t42.engine`, `t42.storage.repository`, `t42.storage.codec` or
-  `t42.storage.replay`. Cheap, and it is the whole difference between "the notifier cannot see a
+  `tricksy.notifications` imports `tricksy.games.texas42`, `tricksy.storage.repository`, `tricksy.storage.codec` or
+  `tricksy.storage.replay`. Cheap, and it is the whole difference between "the notifier cannot see a
   hand" being an argument and being a fact - the same trade 3.7 made for the CLI.
 - `tests/api/test_contacts.py` and `test_password_reset.py` - the four-case contract matrix, with a
   fake sender injected through `app.dependency_overrides` beside the existing `table` override.
@@ -791,7 +791,7 @@ at all.
 - The seat to act is emailed exactly once per turn, proven across a real delay against DynamoDB
   Local, and not at all when its channel is unverified or muted
 - A duplicated stream record sends nothing
-- Nothing under `t42.notifications` can reach `STATE` or the engine, proven by test
+- Nothing under `tricksy.notifications` can reach `STATE` or the engine, proven by test
 - A contact can be added, verified, muted and removed from the CLI
 - A forgotten password can be recovered end to end through a verified channel, and doing so revokes
   every device
@@ -830,7 +830,7 @@ Four decisions govern everything below.
   `execute-api` URL is a working endpoint, and DESIGN.md §7.3 already promised that reaching a
   real one is a change to `--api-url` and nothing else).
 - **The table gets a second definition, and a test rather than a promise.**
-  `t42.storage.schema.create_table` stays what the moto and DynamoDB Local fixtures build from,
+  `tricksy.storage.schema.create_table` stays what the moto and DynamoDB Local fixtures build from,
   and it is written as literal `create_table` kwargs on purpose - boto3-stubs types that call as
   overloads keyed on the keyword names - so the stack cannot simply import it and splat it into a
   CDK construct. Rather than contort one side to feed the other, 5.1 declares the table twice and
@@ -873,25 +873,25 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
 
 ### 5.3 The API function and the HTTP API
 
-- A Python 3.13 arm64 `lambda.Function` on `t42.api.lambda_handler.handler`, which has been
+- A Python 3.13 arm64 `lambda.Function` on `tricksy.api.lambda_handler.handler`, which has been
   waiting since 2.6. The bundle is built in Docker rather than locally: `fastapi` pulls in
   `pydantic-core`, a compiled wheel, so a bundle assembled on a developer's macOS arm64 machine
   imports nothing at all on Lambda. `uv export --frozen --no-dev` plus `uv pip install --target`
   inside the runtime image gets the right wheels; Docker is already a prerequisite for
   `pytest -m integration`, so this adds no new tool. The `cli` extra is excluded, which is what
   that extra exists for.
-- Environment: `T42_TABLE_NAME` set, `T42_DYNAMODB_ENDPOINT` left unset, since `t42.api.deps`
+- Environment: `TRICKSY_TABLE_NAME` set, `TRICKSY_DYNAMODB_ENDPOINT` left unset, since `tricksy.api.deps`
   reads unset as real AWS. IAM through `table.grant_read_write_data`, which covers the GSI.
 - In front of it an API Gateway HTTP API with a `$default` proxy route, and **no API keys**.
   DESIGN.md §10 still says "wire up API keys" for Phase 2, which auth resolution (§6.1, §12) made
   obsolete: the credential is a per-device bearer token the app itself checks. This phase deletes
   that line rather than implementing it.
 - The stack outputs the endpoint URL. That URL is the entire deployment-facing surface of the
-  CLI: `--api-url` or `T42_API_URL` and nothing else.
+  CLI: `--api-url` or `TRICKSY_API_URL` and nothing else.
 
 ### 5.4 The notifier and SES
 
-- A second function on `t42.notifications.handler.lambda_handler` from the same bundle asset,
+- A second function on `tricksy.notifications.handler.lambda_handler` from the same bundle asset,
   behind a `DynamoEventSource` on the table's stream. This is the real event-source mapping
   `pump.py` has been standing in for since 4.4, calling the same entry point with the same
   `{"Records": [...]}` shape, which is what that sub-phase built it that way for.
@@ -903,7 +903,7 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
   already makes a redelivered record a no-op, so a whole-batch retry is correct and merely
   wasteful at a volume of a few emails an hour. It is an optimization available later at the cost
   of a return value the handler does not currently produce.
-- Environment: `T42_EMAIL_SENDER=ses` and `T42_SES_FROM_ADDRESS`. The first matters more than it
+- Environment: `TRICKSY_EMAIL_SENDER=ses` and `TRICKSY_SES_FROM_ADDRESS`. The first matters more than it
   looks: `get_sender()` defaults to `console`, which was the right default for a local run (4.1)
   but in Lambda would print every email to CloudWatch and report success. Nothing fails, nothing
   alarms, and no one is notified, which is why 5.7's check is a real inbox and not a green
@@ -935,8 +935,8 @@ the CLI at the stack's output URL.
 
 Three staleness fixes ride along in the same pass, since this is the phase that reads that file
 closely. The Status paragraph still says Phases 0 through 2 are complete and that provisioning is
-an open question; the layout block never gained `src/t42/notifications/`; and the local-run
-instructions never gained `python -m t42.notifications.pump`, so the one documented way to run this
+an open question; the layout block never gained `src/tricksy/notifications/`; and the local-run
+instructions never gained `python -m tricksy.notifications.pump`, so the one documented way to run this
 project locally is missing half of Phase 4.
 
 ### 5.7 The milestone: a real game against real infra

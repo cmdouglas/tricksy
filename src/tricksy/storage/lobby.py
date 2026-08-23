@@ -7,10 +7,10 @@ Rather than teach it one, which would put lobby bookkeeping inside the pure engi
 
 ``WAITING``
     ``META`` exists with a partial ``seats`` map and the house rules. No ``STATE`` item yet, so
-    :func:`t42.storage.repository.get_state` raises ``GameNotFound`` for it - correctly, since
+    :func:`tricksy.storage.repository.get_state` raises ``GameNotFound`` for it - correctly, since
     there is no game state to read until cards are on the table.
 ``ACTIVE``
-    The join that filled the fourth seat called :func:`t42.storage.repository.start_game`, which
+    The join that filled the fourth seat called :func:`tricksy.storage.repository.start_game`, which
     dealt the first hand and flipped the status in one conditional transaction.
 ``COMPLETE``
     ``append`` set it when the final move produced ``Phase.GAME_OVER``.
@@ -35,10 +35,10 @@ from typing import Any, Final
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine import GAME_KIND
-from t42.engine.contracts import validate_house_rules
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import GameId, GameState, PlayerId, Seat
+from tricksy.games.texas42 import GAME_KIND
+from tricksy.games.texas42.contracts import validate_house_rules
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import GameId, GameState, PlayerId, Seat
 
 from ._dynamo import as_text, from_dynamo
 from .codec import decode_house_rules, encode_house_rules
@@ -116,9 +116,9 @@ class Lobby:
     """The ``META`` item, decoded. Everything about a game that is true before it is dealt, and
     stays true after.
 
-    Seats are plain ``int`` here, not :class:`~t42.engine.state.Seat`, and how many there are is
-    read from the item rather than from ``len(Seat)``. Nothing this module does with a seat needs
-    to know what the engine calls it - claiming one is a conditional update on a map key, and
+    Seats are plain ``int`` here, not :class:`~tricksy.games.texas42.state.Seat`, and how many there
+    are is read from the item rather than from ``len(Seat)``. Nothing this module does with a seat
+    needs to know what the engine calls it - claiming one is a conditional update on a map key, and
     "is this table full" is a count. The one place the engine's own seat type is required is
     :func:`_deal`, which is the call into the engine. See DESIGN.md §11.
     """
@@ -193,7 +193,7 @@ def create_pending_game(
     ``visibility`` defaults to :attr:`Visibility.PUBLIC`, which is exactly today's behaviour -
     anyone with the code may join (DESIGN.md §6.2).
 
-    Raises :class:`~t42.storage.errors.GameAlreadyExists` if the code is in use.
+    Raises :class:`~tricksy.storage.errors.GameAlreadyExists` if the code is in use.
     """
     validate_house_rules(config)
     timestamp = now().isoformat()
@@ -318,11 +318,11 @@ def join_seat(
     Idempotent in the way a retried request needs: re-joining a seat you already hold returns the
     current lobby rather than raising, whether or not the game has since been dealt.
 
-    Raises :class:`~t42.storage.errors.SeatTaken` if somebody else got there first,
-    :class:`~t42.storage.errors.AlreadySeated` if you already hold a different seat,
-    :class:`~t42.storage.errors.GameNotJoinable` once the game is past its lobby, and
-    :class:`~t42.storage.errors.NotInvited` if the table is ``invite_only`` and ``player_id`` holds
-    no invite to it (DESIGN.md §6.2).
+    Raises :class:`~tricksy.storage.errors.SeatTaken` if somebody else got there first,
+    :class:`~tricksy.storage.errors.AlreadySeated` if you already hold a different seat,
+    :class:`~tricksy.storage.errors.GameNotJoinable` once the game is past its lobby, and
+    :class:`~tricksy.storage.errors.NotInvited` if the table is ``invite_only`` and ``player_id``
+    holds no invite to it (DESIGN.md §6.2).
 
     **The invite check is a read-then-write, deliberately** - the same trade-off the rest of this
     function already makes. Its one window is an invite revoked in the seconds between the read
@@ -386,7 +386,7 @@ def _deal(
     outcome rather than an error: the caller wanted a dealt game and there is one.
 
     The one place this module converts its plain ``int`` seats back into the engine's own
-    :class:`~t42.engine.state.Seat`, because this is the call into the engine.
+    :class:`~tricksy.games.texas42.state.Seat`, because this is the call into the engine.
     """
     players = {Seat(seat): assignment.player_id for seat, assignment in lobby.seats.items()}
     try:

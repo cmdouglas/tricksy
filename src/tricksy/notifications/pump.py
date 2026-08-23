@@ -1,8 +1,8 @@
 """Polls DynamoDB Streams locally and hands batches to the notification handler (ROADMAP.md 4.4).
 
 There is no Lambda event-source mapping outside AWS, so this stands in for one: it discovers the
-``Texas42`` table's stream, tracks a shard iterator per open shard, and calls
-:func:`~t42.notifications.handler.lambda_handler` with a ``{"Records": [...]}`` batch shaped
+``Tricksy`` table's stream, tracks a shard iterator per open shard, and calls
+:func:`~tricksy.notifications.handler.lambda_handler` with a ``{"Records": [...]}`` batch shaped
 exactly like the one a real event-source mapping would deliver - the local path and the deployed
 path exercise the same entry point, and nothing about this module needs to change when Phase 5
 wires up the real thing.
@@ -19,7 +19,7 @@ restarts) is AWS's job once Phase 5 wires up a real event-source mapping, not th
 
 Run with::
 
-    python -m t42.notifications.pump
+    python -m tricksy.notifications.pump
 """
 
 from __future__ import annotations
@@ -36,10 +36,10 @@ from mypy_boto3_dynamodbstreams.client import DynamoDBStreamsClient
 
 from .handler import lambda_handler
 
-#: Same env vars ``t42.storage.schema`` reads, so a shell already set up to create the table needs
-#: nothing extra to point the pump at it.
-TABLE_NAME_ENV = "T42_TABLE_NAME"
-ENDPOINT_URL_ENV = "T42_DYNAMODB_ENDPOINT"
+#: Same env vars ``tricksy.storage.schema`` reads, so a shell already set up to create the table
+#: needs nothing extra to point the pump at it.
+TABLE_NAME_ENV = "TRICKSY_TABLE_NAME"
+ENDPOINT_URL_ENV = "TRICKSY_DYNAMODB_ENDPOINT"
 
 #: Between poll cycles, matching DynamoDB Streams' own guidance of about one ``GetRecords`` call
 #: per shard per second.
@@ -67,7 +67,7 @@ def poll(
     calling ``handler`` once per shard per cycle that has new records.
 
     ``handler`` and ``sleep`` are both injectable, the same dependency-injection shape
-    ``now: Callable[[], datetime]`` has throughout ``t42.storage.accounts`` - a test supplies a
+    ``now: Callable[[], datetime]`` has throughout ``tricksy.storage.accounts`` - a test supplies a
     spy handler and a no-op sleep rather than waiting on a real clock or a real notification.
     """
     stream_arn = _stream_arn(dynamodb_client, table_name)
@@ -105,10 +105,10 @@ def poll(
 
 
 def main() -> int:
-    """Reads ``T42_TABLE_NAME``/``T42_DYNAMODB_ENDPOINT`` and polls forever.
+    """Reads ``TRICKSY_TABLE_NAME``/``TRICKSY_DYNAMODB_ENDPOINT`` and polls forever.
 
-    No default table name, the same reasoning ``t42.storage.schema.main`` and
-    ``t42.api.deps.get_table`` already give: silently defaulting is how a local run ends up
+    No default table name, the same reasoning ``tricksy.storage.schema.main`` and
+    ``tricksy.api.deps.get_table`` already give: silently defaulting is how a local run ends up
     pointed at production.
     """
     table_name = os.environ.get(TABLE_NAME_ENV)

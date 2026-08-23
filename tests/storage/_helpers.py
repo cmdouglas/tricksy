@@ -8,12 +8,12 @@ from random import Random
 
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import GameState, Seat
-from t42.storage.lobby import create_pending_game, join_seat
-from t42.storage.repository import get_state
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import GameState, Seat
+from tricksy.storage.lobby import create_pending_game, join_seat
+from tricksy.storage.repository import get_state
 
-from ..engine._helpers import PLAYERS
+from ..games.texas42._helpers import PLAYERS
 
 
 def _utcnow() -> datetime:

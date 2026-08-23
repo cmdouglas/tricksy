@@ -35,8 +35,8 @@ class HouseRules:
     """Rule variants chosen when the game is created.
 
     Contract names and their options are validated against the registry by
-    :func:`t42.engine.contracts.registry.validate_house_rules`; this type stays dependency-free
-    of the registry itself.
+    :func:`tricksy.games.texas42.contracts.registry.validate_house_rules`; this type stays
+    dependency-free of the registry itself.
     """
 
     enabled_contracts: frozenset[str] = DEFAULT_CONTRACTS

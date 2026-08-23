@@ -1,8 +1,9 @@
 """Game state data shapes.
 
-Everything here is a frozen dataclass: the engine returns new state rather than mutating, so a
-state can be replayed, cached and compared safely (DESIGN.md §4.1). Behaviour lives in
-:mod:`t42.engine.bidding`, :mod:`t42.engine.tricks` and the contract strategies.
+Everything here is a frozen dataclass: the engine returns new state rather than mutating, so a state
+can be replayed, cached and compared safely (DESIGN.md §4.1). Behaviour lives in
+:mod:`tricksy.games.texas42.bidding`, :mod:`tricksy.games.texas42.tricks` and the contract
+strategies.
 """
 
 from __future__ import annotations
@@ -126,7 +127,7 @@ class HandState:
 @dataclass(frozen=True, slots=True)
 class GameState:
     """Full server-side state, including every hand. Never sent to a client as-is - see
-    :func:`t42.engine.projection.project`."""
+    :func:`tricksy.games.texas42.projection.project`."""
 
     game_id: GameId
     config: HouseRules

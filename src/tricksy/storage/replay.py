@@ -7,11 +7,11 @@ survive rule changes to the shuffle itself), but ``new_game``/``apply_move`` bot
 replays the recorded deals instead of randomizing, so the real dealing code runs unmodified.
 
 **This is a contract with the engine's dealer, and it is not enforceable by types.** Replay is
-correct only while :func:`t42.engine.game._deal_hand` calls ``rng.shuffle`` **exactly once per
-hand** and then slices the shuffled deck in ``Seat`` order - the shape :func:`_deal_order` writes
-the recorded deal back into. A dealer that shuffled twice, drew tile by tile, or dealt in a
-different seat order would not fail here; it would silently replay a *different* game. Anything
-that changes how dealing works has to change ``_deal_order`` with it. See DESIGN.md §11.1.
+correct only while :func:`tricksy.games.texas42.game._deal_hand` calls ``rng.shuffle`` **exactly
+once per hand** and then slices the shuffled deck in ``Seat`` order - the shape :func:`_deal_order`
+writes the recorded deal back into. A dealer that shuffled twice, drew tile by tile, or dealt in a
+different seat order would not fail here; it would silently replay a *different* game. Anything that
+changes how dealing works has to change ``_deal_order`` with it. See DESIGN.md §11.1.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from collections.abc import Iterator, Mapping, MutableSequence, Sequence
 from random import Random
 from typing import Any
 
-from t42.engine.dominoes import Domino
-from t42.engine.events import (
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.events import (
     BidConfirmed,
     BidPlaced,
     ContractDeclared,
@@ -30,10 +30,17 @@ from t42.engine.events import (
     HandDealt,
     Passed,
 )
-from t42.engine.game import apply_move, new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import ConfirmBid, DeclareContract, Move, Pass, PlaceBid, PlayDomino
-from t42.engine.state import GameId, GameState, PlayerId, Seat
+from tricksy.games.texas42.game import apply_move, new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import (
+    ConfirmBid,
+    DeclareContract,
+    Move,
+    Pass,
+    PlaceBid,
+    PlayDomino,
+)
+from tricksy.games.texas42.state import GameId, GameState, PlayerId, Seat
 
 
 class _ReplayRandom(Random):

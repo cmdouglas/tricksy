@@ -11,11 +11,11 @@ from typing import Any
 
 import pytest
 
-from t42.engine.dominoes import parse
-from t42.engine.game import apply_move, legal_moves, new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.projection import project
-from t42.engine.state import GameState, Phase, Seat
+from tricksy.games.texas42.dominoes import parse
+from tricksy.games.texas42.game import apply_move, legal_moves, new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.projection import project
+from tricksy.games.texas42.state import GameState, Phase, Seat
 
 from ._helpers import PLAYERS, drive_to_game_over, first_option, player_of, prefer_contract
 

@@ -11,7 +11,7 @@ of a resource does not carry those hooks and would need ``boto3.dynamodb.types.T
 
 Reads go through the resource's ``get_item``/``query``, which auto-deserialize, but always to
 ``Decimal`` for numbers rather than ``int``; ``from_dynamo`` converts that back before anything
-reaches :mod:`t42.storage.codec`, which was never written to expect ``Decimal`` (deliberately -
+reaches :mod:`tricksy.storage.codec`, which was never written to expect ``Decimal`` (deliberately -
 ``codec.py`` stays boto3-agnostic, so the conversion lives here instead).
 """
 

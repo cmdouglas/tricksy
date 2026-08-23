@@ -1,7 +1,8 @@
 """Errors raised by the repository (ROADMAP.md 1.3).
 
-Mirrors ``t42.engine.errors``'s style: a base class plus specific subclasses, raised rather than
-returned, so callers can catch the one they care about or ``StorageError`` for all of them.
+Mirrors ``tricksy.games.texas42.errors``'s style: a base class plus specific subclasses, raised
+rather than returned, so callers can catch the one they care about or ``StorageError`` for all of
+them.
 """
 
 from __future__ import annotations

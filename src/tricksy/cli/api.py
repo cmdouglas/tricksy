@@ -8,7 +8,7 @@ server just to exercise a ``--help`` path. Both ``TestClient`` and ``httpx2.Clie
 a compatible ``request(method, url, *, json=, headers=)`` -> object-with-``status_code``/``json()``
 shape, so the protocol below costs nothing beyond declaring it.
 
-The ``{"error": {"code", "message"}}`` envelope (``t42/api/errors.py``) decodes into a typed
+The ``{"error": {"code", "message"}}`` envelope (``tricksy/api/errors.py``) decodes into a typed
 ``ApiError`` carrying the ``code`` - that symbol is the contract this client is built against, so
 nothing here branches on a status code or on message prose. A response that does not carry that
 envelope (notably FastAPI's own unwrapped 422 validation errors) decodes to ``code="UNKNOWN"``

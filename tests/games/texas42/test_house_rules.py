@@ -4,12 +4,12 @@ import dataclasses
 
 import pytest
 
-from t42.engine import contracts
-from t42.engine.bidding import legal_bids
-from t42.engine.dominoes import Domino
-from t42.engine.errors import IllegalMove, RulesError, UnknownContract
-from t42.engine.house_rules import DEFAULT_CONTRACTS, DEFAULT_MARKS_TO_WIN, HouseRules
-from t42.engine.state import Bid, Seat
+from tricksy.games.texas42 import contracts
+from tricksy.games.texas42.bidding import legal_bids
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.errors import IllegalMove, RulesError, UnknownContract
+from tricksy.games.texas42.house_rules import DEFAULT_CONTRACTS, DEFAULT_MARKS_TO_WIN, HouseRules
+from tricksy.games.texas42.state import Bid, Seat
 
 from ._helpers import custom_deal, make_game
 

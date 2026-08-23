@@ -10,11 +10,11 @@ from random import Random
 
 import pytest
 
-from t42.engine.dominoes import Domino
-from t42.engine.game import new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move
-from t42.engine.state import GameState, HandState, Phase, Seat, Team
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move
+from tricksy.games.texas42.state import GameState, HandState, Phase, Seat, Team
 
 from ._helpers import PLAYERS, custom_deal, drive_to_game_over, first_option, prefer_contract
 

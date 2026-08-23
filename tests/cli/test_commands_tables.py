@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from t42.cli import config, context
-from t42.cli.command import Command
-from t42.cli.commands import tables
+from tricksy.cli import config, context
+from tricksy.cli.command import Command
+from tricksy.cli.commands import tables
 
 from ._helpers import fake_transport
 
@@ -176,7 +176,7 @@ def test_uninvite_resolves_username_to_player_id(monkeypatch: pytest.MonkeyPatch
 def test_uninvite_raises_player_not_found_when_username_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from t42.cli.api import ApiError
+    from tricksy.cli.api import ApiError
 
     transport = fake_transport({"invites": []})
     monkeypatch.setattr(context, "transport_factory", lambda url: transport)

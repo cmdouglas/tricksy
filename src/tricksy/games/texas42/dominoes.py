@@ -35,7 +35,7 @@ class Domino:
 
     @property
     def pips(self) -> int:
-        """Total pip count, used by the count-domino table in :mod:`t42.engine.scoring`."""
+        """Total pip count, used by the count-domino table in :mod:`.scoring`."""
         return self.high + self.low
 
     @property

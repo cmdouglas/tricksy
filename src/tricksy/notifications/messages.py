@@ -1,9 +1,9 @@
 """Pure ``dict -> (subject, body)`` renderers, one per notification kind (ROADMAP.md 4.1).
 
 No I/O, no client library: the interesting part of a notification is its content, and content
-should be assertable without a transport - the same property ``t42.cli.render`` has for the same
+should be assertable without a transport - the same property ``tricksy.cli.render`` has for the same
 reason. These renderers do not decide who gets notified or when; that is ROADMAP.md 4.5's handler,
-which will call the function it needs by name, the same way ``t42.cli``'s command handlers call
+which will call the function it needs by name, the same way ``tricksy.cli``'s command handlers call
 ``render.render_game`` and friends directly rather than through a dispatch table.
 
 Every dict shares ``game_id`` (game ids double as join codes, DESIGN.md §4.1, so there is no
@@ -71,12 +71,12 @@ def render_invite(data: dict[str, Any]) -> tuple[str, str]:
 def render_verify_contact(data: dict[str, Any]) -> tuple[str, str]:
     """Expects: address, token."""
     subject = "Verify this contact address"
-    body = f"To verify {data['address']}, run:\n\n    t42 contact confirm {data['token']}\n"
+    body = f"To verify {data['address']}, run:\n\n    tricksy contact confirm {data['token']}\n"
     return subject, body
 
 
 def render_password_reset(data: dict[str, Any]) -> tuple[str, str]:
     """Expects: token."""
     subject = "Reset your password"
-    body = f"To reset your password, run:\n\n    t42 reset-password {data['token']}\n"
+    body = f"To reset your password, run:\n\n    tricksy reset-password {data['token']}\n"
     return subject, body

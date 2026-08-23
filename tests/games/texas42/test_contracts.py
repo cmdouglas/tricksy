@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from t42.engine import contracts
-from t42.engine.errors import UnknownContract
-from t42.engine.house_rules import HouseRules
+from tricksy.games.texas42 import contracts
+from tricksy.games.texas42.errors import UnknownContract
+from tricksy.games.texas42.house_rules import HouseRules
 
 
 def test_every_designed_contract_is_registered() -> None:

@@ -1,13 +1,13 @@
 """The email transport (ROADMAP.md 4.1).
 
 ``EmailSender`` is a narrow protocol - ``send(to, subject, body) -> None`` - rather than a bare
-function, for the same reason ``t42.cli.api``'s ``Transport`` is a protocol: DESIGN.md §11's claim
-that SMS, push or a chat DM is a new implementation rather than a rewrite only holds if the send
-channel is something pluggable in the first place.
+function, for the same reason ``tricksy.cli.api``'s ``Transport`` is a protocol: DESIGN.md §11's
+claim that SMS, push or a chat DM is a new implementation rather than a rewrite only holds if the
+send channel is something pluggable in the first place.
 
 ``get_sender`` picks between implementations by environment variable, the same shape
-``t42.api.deps`` uses for the table handle - but the default is inverted on purpose.
-``t42.api.deps.get_table`` refuses to guess a table name because guessing wrong means writing to
+``tricksy.api.deps`` uses for the table handle - but the default is inverted on purpose.
+``tricksy.api.deps.get_table`` refuses to guess a table name because guessing wrong means writing to
 production; here, guessing wrong means printing to stdout instead of emailing, which is the safe
 failure mode, so an unset environment leaves a local run working rather than crashing it.
 """
@@ -22,9 +22,9 @@ from typing import Protocol
 import boto3
 
 #: Selects the ``EmailSender`` implementation: "console" (default) or "ses".
-EMAIL_SENDER_ENV = "T42_EMAIL_SENDER"
-#: Required only when T42_EMAIL_SENDER=ses.
-SES_FROM_ADDRESS_ENV = "T42_SES_FROM_ADDRESS"
+EMAIL_SENDER_ENV = "TRICKSY_EMAIL_SENDER"
+#: Required only when TRICKSY_EMAIL_SENDER=ses.
+SES_FROM_ADDRESS_ENV = "TRICKSY_SES_FROM_ADDRESS"
 
 
 class EmailSender(Protocol):
@@ -46,7 +46,7 @@ class ConsoleSender:
 @dataclass(slots=True)
 class SesSender:
     """Sends through SES ``sesv2``. ``client`` is kept untyped, the same way
-    ``t42.api.deps``'s ``_resource()`` keeps the DynamoDB resource untyped - it avoids a
+    ``tricksy.api.deps``'s ``_resource()`` keeps the DynamoDB resource untyped - it avoids a
     dependency on ``sesv2`` boto3 stubs for one narrow call site."""
 
     from_address: str

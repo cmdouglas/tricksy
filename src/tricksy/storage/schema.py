@@ -1,4 +1,4 @@
-"""The ``Texas42`` table definition (DESIGN.md §4.1) and a way to create it outside a test run.
+"""The ``Tricksy`` table definition (DESIGN.md §4.1) and a way to create it outside a test run.
 
 :func:`create_table` is the single source of truth for the table's shape - the moto and DynamoDB
 Local fixtures in ``tests/conftest.py`` both build from it, which is the property ROADMAP.md 2.7.3
@@ -14,10 +14,11 @@ The table also has a DynamoDB Stream enabled, with both images so a consumer see
 rather than just a current state (ROADMAP.md 4.4) - every rule Phase 4.5's notifier applies is a
 transition (``is_my_turn`` false to true, and so on), and old images are what make that visible.
 
-This module - not a ``t42 dev`` CLI subcommand - is where local table creation lives, because
-``t42.cli`` may not import boto3 (ROADMAP.md 3.7 has a layering test enforcing that). Run it with::
+This module - not a ``tricksy dev`` CLI subcommand - is where local table creation lives, because
+``tricksy.cli`` may not import boto3 (ROADMAP.md 3.7 has a layering test enforcing that). Run it
+with::
 
-    python -m t42.storage.schema
+    python -m tricksy.storage.schema
 """
 
 from __future__ import annotations
@@ -28,14 +29,14 @@ import sys
 import boto3
 from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
 
-#: Same env vars ``t42.api.deps`` reads, so a shell already set up to run the API needs nothing
+#: Same env vars ``tricksy.api.deps`` reads, so a shell already set up to run the API needs nothing
 #: extra to create the table it points at.
-TABLE_NAME_ENV = "T42_TABLE_NAME"
-ENDPOINT_URL_ENV = "T42_DYNAMODB_ENDPOINT"
+TABLE_NAME_ENV = "TRICKSY_TABLE_NAME"
+ENDPOINT_URL_ENV = "TRICKSY_DYNAMODB_ENDPOINT"
 
 
 def create_table(dynamodb: DynamoDBServiceResource, name: str) -> Table:
-    """Creates the ``Texas42`` table shape under ``name`` and returns a handle to it.
+    """Creates the ``Tricksy`` table shape under ``name`` and returns a handle to it.
 
     Does not wait for the table to become ACTIVE - the moto ``table`` fixture doesn't need to
     (moto is synchronous), so that stays the caller's job, as it already is for ``real_table`` in
@@ -70,11 +71,11 @@ def create_table(dynamodb: DynamoDBServiceResource, name: str) -> Table:
 
 
 def main() -> int:
-    """Creates the table against ``T42_DYNAMODB_ENDPOINT`` (DynamoDB Local, typically) under
-    ``T42_TABLE_NAME``, and waits for it to exist before returning - unlike :func:`create_table`
+    """Creates the table against ``TRICKSY_DYNAMODB_ENDPOINT`` (DynamoDB Local, typically) under
+    ``TRICKSY_TABLE_NAME``, and waits for it to exist before returning - unlike :func:`create_table`
     itself, a one-shot CLI invocation should not hand back control before the table is usable.
 
-    No default table name, matching ``t42.api.deps.get_table``: silently defaulting to a name is
+    No default table name, matching ``tricksy.api.deps.get_table``: silently defaulting to a name is
     how a local run ends up pointed at production.
     """
     name = os.environ.get(TABLE_NAME_ENV)

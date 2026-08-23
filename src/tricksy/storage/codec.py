@@ -12,8 +12,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from t42.engine.dominoes import Domino, parse
-from t42.engine.events import (
+from tricksy.games.texas42.dominoes import Domino, parse
+from tricksy.games.texas42.events import (
     BidConfirmed,
     BidPlaced,
     ContractDeclared,
@@ -22,8 +22,8 @@ from t42.engine.events import (
     HandDealt,
     Passed,
 )
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import (
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import (
     Bid,
     GameState,
     HandState,
@@ -34,7 +34,7 @@ from t42.engine.state import (
     Team,
     Trick,
 )
-from t42.engine.suits import Suit
+from tricksy.games.texas42.suits import Suit
 
 #: A plain, JSON-shaped attribute map - the boundary this module exists to draw. ``Any`` is
 #: deliberate here: everywhere else in the engine trades it for real types, but this is the wire

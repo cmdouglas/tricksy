@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from t42.engine.contracts import get as get_contract
-from t42.engine.dominoes import FULL_SET
-from t42.engine.errors import IllegalMove, OutOfTurn
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import PlayDomino
-from t42.engine.state import Bid, GameState, HandState, Phase, Seat, Team, partner_of
-from t42.engine.suits import Suit
-from t42.engine.tricks import legal_plays, play
+from tricksy.games.texas42.contracts import get as get_contract
+from tricksy.games.texas42.dominoes import FULL_SET
+from tricksy.games.texas42.errors import IllegalMove, OutOfTurn
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import PlayDomino
+from tricksy.games.texas42.state import Bid, GameState, HandState, Phase, Seat, Team, partner_of
+from tricksy.games.texas42.suits import Suit
+from tricksy.games.texas42.tricks import legal_plays, play
 
 from ._helpers import PLAYERS, deal, player_of
 

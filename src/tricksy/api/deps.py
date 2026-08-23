@@ -20,15 +20,15 @@ import boto3
 from fastapi import Depends, Header
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.state import PlayerId
-from t42.notifications import EmailSender, get_sender
-from t42.storage.accounts import player_for_token
+from tricksy.games.texas42.state import PlayerId
+from tricksy.notifications import EmailSender, get_sender
+from tricksy.storage.accounts import player_for_token
 
 from .errors import not_authenticated
 
 #: Overridable so a local run can point at DynamoDB Local without editing code.
-TABLE_NAME_ENV = "T42_TABLE_NAME"
-ENDPOINT_URL_ENV = "T42_DYNAMODB_ENDPOINT"
+TABLE_NAME_ENV = "TRICKSY_TABLE_NAME"
+ENDPOINT_URL_ENV = "TRICKSY_DYNAMODB_ENDPOINT"
 
 
 @lru_cache(maxsize=1)
@@ -40,8 +40,9 @@ def _resource() -> object:
 def get_table() -> Table:
     """The DynamoDB table every handler writes through.
 
-    Overridden wholesale in tests. In production it reads ``T42_TABLE_NAME``; there is no default,
-    because silently defaulting to a table name is how a test run ends up writing to production.
+    Overridden wholesale in tests. In production it reads ``TRICKSY_TABLE_NAME``; there is no
+    default, because silently defaulting to a table name is how a test run ends up writing to
+    production.
     """
     name = os.environ.get(TABLE_NAME_ENV)
     if not name:
@@ -51,9 +52,9 @@ def get_table() -> Table:
 
 
 TableDep = Annotated[Table, Depends(get_table)]
-
-#: Overridden wholesale in tests, the same way ``get_table`` is - see ``t42.notifications.sender``
-#: for the environment variable that picks the production implementation.
+#: Overridden wholesale in tests, the same way ``get_table`` is - see
+#: ``tricksy.notifications.sender`` for the environment variable that picks the production
+#: implementation.
 EmailSenderDep = Annotated[EmailSender, Depends(get_sender)]
 
 

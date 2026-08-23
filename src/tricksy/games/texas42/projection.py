@@ -8,9 +8,10 @@ are all things every seat already knows at a real table. The only genuine secret
 parts of ``state`` copied to plain data, with the caller's own hand substituted for the full
 ``hands`` mapping and ``legal_moves`` filled in when it's their turn.
 
-The small encoders below deliberately don't share code with :mod:`t42.storage.codec`: invariant 1
-forbids ``t42.engine`` importing from ``t42.storage``, and the two modules serve different
-purposes anyway - ``codec`` is a durable DynamoDB wire format, this is a read-model for clients.
+The small encoders below deliberately don't share code with :mod:`tricksy.storage.codec`: invariant
+1 forbids ``tricksy.games.texas42`` importing from ``tricksy.storage``, and the two modules serve
+different purposes anyway - ``codec`` is a durable DynamoDB wire format, this is a read-model for
+clients.
 """
 
 from __future__ import annotations
@@ -65,7 +66,7 @@ def project(state: GameState, player_id: PlayerId) -> dict[str, Any]:
 
     Includes their own hand, the current trick, trump, scores, whose turn it is, and their legal
     moves when it is their turn. Raises ``KeyError`` if ``player_id`` is not seated in this game,
-    the same convention :func:`t42.engine.state.seat_of` uses elsewhere in the engine.
+    the same convention :func:`tricksy.games.texas42.state.seat_of` uses elsewhere in the engine.
     """
     seat = seat_of(state, player_id)
     hand = state.hand

@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
-from t42.storage.repository import StoredGame, get_state
+from tricksy.storage.repository import StoredGame, get_state
 
 from ._helpers import Client, play_until, seated_game, submit, whose_turn
 
@@ -183,7 +183,7 @@ def _pretend_a_write_landed_first(monkeypatch: MonkeyPatch) -> None:
         stored = get_state(table, game_id)
         return StoredGame(state=stored.state, version=stored.version - 1)
 
-    monkeypatch.setattr("t42.api.app.get_state", stale)
+    monkeypatch.setattr("tricksy.api.app.get_state", stale)
 
 
 def test_a_stale_version_is_409(players: list[Client], game: str, monkeypatch: MonkeyPatch) -> None:

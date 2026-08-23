@@ -13,9 +13,9 @@ from collections.abc import Callable
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import Seat
-from t42.storage.lobby import create_pending_game, list_open_games
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import Seat
+from tricksy.storage.lobby import create_pending_game, list_open_games
 
 pytestmark = pytest.mark.integration
 

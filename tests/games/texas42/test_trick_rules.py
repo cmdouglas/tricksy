@@ -3,11 +3,15 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from t42.engine.dominoes import FULL_SET, Domino
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import PlayedDomino, Seat, Trick
-from t42.engine.suits import NUMBER_SUITS, Suit
-from t42.engine.trick_rules import follow_suit_plays, highest_trump_or_led_suit_wins, suit_led
+from tricksy.games.texas42.dominoes import FULL_SET, Domino
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import PlayedDomino, Seat, Trick
+from tricksy.games.texas42.suits import NUMBER_SUITS, Suit
+from tricksy.games.texas42.trick_rules import (
+    follow_suit_plays,
+    highest_trump_or_led_suit_wins,
+    suit_led,
+)
 
 PLAIN = HouseRules()
 DOUBLES_SUIT = HouseRules(doubles_are_own_suit=True)

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from t42.engine.contracts import get
-from t42.engine.dominoes import Domino
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import (
+from tricksy.games.texas42.contracts import get
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import (
     Bid,
     GameState,
     HandState,

@@ -3,9 +3,9 @@
 A stream record carries DynamoDB-JSON attribute values (``{"S": "foo"}``, ``{"N": "3"}``, ...) -
 the one place in this codebase that shape is visible, since everywhere else goes through the
 resource-level ``Table`` API, which hands back plain Python values directly. This module is the
-single translation point, so :mod:`t42.notifications.handler` (ROADMAP.md 4.5) can pattern-match
-against plain dicts and be tested without a stream, the same way :mod:`t42.storage.codec` and
-:mod:`t42.cli.render` each have their own single translation point for their own wire shapes.
+single translation point, so :mod:`tricksy.notifications.handler` (ROADMAP.md 4.5) can pattern-match
+against plain dicts and be tested without a stream, the same way :mod:`tricksy.storage.codec` and
+:mod:`tricksy.cli.render` each have their own single translation point for their own wire shapes.
 
 Pure, no I/O - this only ever touches the record dict it's handed.
 """
@@ -69,7 +69,7 @@ def _decode_optional(image: Mapping[str, Any] | None) -> dict[str, Any] | None:
 
 def transition_from_record(record: Mapping[str, Any]) -> Transition:
     """Decodes one entry of a stream batch's ``Records`` list - the same shape whether it arrived
-    via a real Lambda event-source mapping or :mod:`t42.notifications.pump`'s local poll."""
+    via a real Lambda event-source mapping or :mod:`tricksy.notifications.pump`'s local poll."""
     body = record["dynamodb"]
     return Transition(
         event_name=record["eventName"],

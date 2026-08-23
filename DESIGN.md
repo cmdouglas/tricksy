@@ -1,4 +1,8 @@
-# Texas 42 Online — Design Document & MVP Development Plan
+# Tricksy — Design Document & MVP Development Plan
+
+Tricksy is the server; **Texas 42** is the game it implements, and for now the only one. Where this
+document says "the engine" it means `tricksy.games.texas42`. See §11.1 for what that split does and
+does not buy.
 
 ## 1. Goals
 
@@ -50,7 +54,7 @@ Serverless (API Gateway + Lambda + DynamoDB) fits well here: traffic is bursty a
 
 Each game is a DynamoDB partition. Rather than overwriting one JSON blob per move (which invites lost-update races and gives no history), store each action as an immutable, ordered event, and additionally cache the current derived state for fast reads.
 
-Table: `Texas42` (single-table design)
+Table: `Tricksy` (single-table design)
 
 | PK | SK | Item type |
 |---|---|---|
@@ -154,7 +158,7 @@ This layer gets the heaviest test investment — property-based and table-driven
 
 A *house-rule set* is the complete set of rule choices a table plays under: which contracts are available, the terms each may be bid on, and how the game is scored. It is fixed when the game is created, stored on the `META` item, and threaded through every engine call as an argument - never read from module state. Two games created under different house rules must score and replay correctly side by side in the same process.
 
-**Shape.** One frozen `HouseRules` value (`t42/engine/house_rules.py`) carries:
+**Shape.** One frozen `HouseRules` value (`tricksy/games/texas42/house_rules.py`) carries:
 
 | Field | Meaning |
 |---|---|
@@ -416,7 +420,7 @@ A thin client with no game logic of its own - it renders the projected view and 
 Domino notation: `a-b` (e.g., `6-4`, `5-5`). Status output renders hand, trump, current trick, and score in plain text/ASCII.
 
 **The CLI is a client of the API, not a component of the server.** It imports nothing from
-`t42.engine` and nothing from `t42.storage`, and it carries its own tables of seat and suit names
+`tricksy.games.texas42` and nothing from `tricksy.storage`, and it carries its own tables of seat and suit names
 rather than importing the enums. That costs a duplicated name table; what it buys is that section
 11's claim - a new client needs the API and the projected view and nothing else - becomes a fact
 provable by an import check rather than an assertion. A CLI that reached for `Suit` to print
@@ -435,36 +439,36 @@ Every endpoint in section 6 is reachable from a command:
 
 | Command | Endpoint |
 |---|---|
-| `t42 register <username>` | `POST /players` |
-| `t42 login <username>` | `POST /sessions` |
-| `t42 logout` | `DELETE /sessions/current` |
-| `t42 whoami` | `GET /players/me` |
-| `t42 contacts` | `GET /players/me/contacts` |
-| `t42 contact add <address> [--kind email]` | `POST /players/me/contacts` |
-| `t42 contact remove <address>` | `DELETE /players/me/contacts/{address}` |
-| `t42 contact verify <address>` | `POST /players/me/contacts/{address}/verification` |
-| `t42 contact confirm <token>` | `POST /contacts/verify` |
-| `t42 contact mute\|unmute <address>` | `PATCH /players/me/contacts/{address}` |
-| `t42 forgot-password <username>` | `POST /password-resets` |
-| `t42 reset-password <token>` | `POST /password-resets/confirm` |
-| `t42 rules save <name> [rule flags]` | `POST /players/me/rule-sets` |
-| `t42 rules list` | `GET /players/me/rule-sets` |
-| `t42 rules show <id>` | `GET /players/me/rule-sets/{ruleSetId}` |
-| `t42 rules replace <id> <name> [rule flags]` | `PUT /players/me/rule-sets/{ruleSetId}` |
-| `t42 rules delete <id>` | `DELETE /players/me/rule-sets/{ruleSetId}` |
-| `t42 create-game [rule flags] [--visibility] [--rule-set <id>]` | `POST /games` |
-| `t42 join <code> --seat <seat>` | `POST /games/{id}/join` |
-| `t42 open` | `GET /games/open` |
-| `t42 status <code>` | `GET /games/{id}` |
-| `t42 games` | `GET /players/me/games` |
-| `t42 invite <code> <username>` | `POST /games/{id}/invites` |
-| `t42 invited <code>` | `GET /games/{id}/invites` |
-| `t42 uninvite <code> <username>` | `GET` then `DELETE /games/{id}/invites/{playerId}` |
-| `t42 decline <code>` | `DELETE /games/{id}/invites/{own id}` |
-| `t42 invites` | `GET /players/me/invites` |
-| `t42 bid <code> 32 \| pass \| 2-marks --contract nello \| confirm \| decline` | `POST /games/{id}/moves` |
-| `t42 declare <code> trump=fives \| trump=doubles \| trump=none` | `POST /games/{id}/moves` |
-| `t42 play <code> 4-1 [--declare treys]` | `POST /games/{id}/moves` |
+| `tricksy register <username>` | `POST /players` |
+| `tricksy login <username>` | `POST /sessions` |
+| `tricksy logout` | `DELETE /sessions/current` |
+| `tricksy whoami` | `GET /players/me` |
+| `tricksy contacts` | `GET /players/me/contacts` |
+| `tricksy contact add <address> [--kind email]` | `POST /players/me/contacts` |
+| `tricksy contact remove <address>` | `DELETE /players/me/contacts/{address}` |
+| `tricksy contact verify <address>` | `POST /players/me/contacts/{address}/verification` |
+| `tricksy contact confirm <token>` | `POST /contacts/verify` |
+| `tricksy contact mute\|unmute <address>` | `PATCH /players/me/contacts/{address}` |
+| `tricksy forgot-password <username>` | `POST /password-resets` |
+| `tricksy reset-password <token>` | `POST /password-resets/confirm` |
+| `tricksy rules save <name> [rule flags]` | `POST /players/me/rule-sets` |
+| `tricksy rules list` | `GET /players/me/rule-sets` |
+| `tricksy rules show <id>` | `GET /players/me/rule-sets/{ruleSetId}` |
+| `tricksy rules replace <id> <name> [rule flags]` | `PUT /players/me/rule-sets/{ruleSetId}` |
+| `tricksy rules delete <id>` | `DELETE /players/me/rule-sets/{ruleSetId}` |
+| `tricksy create-game [rule flags] [--visibility] [--rule-set <id>]` | `POST /games` |
+| `tricksy join <code> --seat <seat>` | `POST /games/{id}/join` |
+| `tricksy open` | `GET /games/open` |
+| `tricksy status <code>` | `GET /games/{id}` |
+| `tricksy games` | `GET /players/me/games` |
+| `tricksy invite <code> <username>` | `POST /games/{id}/invites` |
+| `tricksy invited <code>` | `GET /games/{id}/invites` |
+| `tricksy uninvite <code> <username>` | `GET` then `DELETE /games/{id}/invites/{playerId}` |
+| `tricksy decline <code>` | `DELETE /games/{id}/invites/{own id}` |
+| `tricksy invites` | `GET /players/me/invites` |
+| `tricksy bid <code> 32 \| pass \| 2-marks --contract nello \| confirm \| decline` | `POST /games/{id}/moves` |
+| `tricksy declare <code> trump=fives \| trump=doubles \| trump=none` | `POST /games/{id}/moves` |
+| `tricksy play <code> 4-1 [--declare treys]` | `POST /games/{id}/moves` |
 
 The five spellings of `bid` are one command because they are three request bodies on one endpoint,
 discriminated on `kind` - the plunge confirmation being an auction move rather than a phase of its
@@ -483,12 +487,12 @@ all of them. `--seat` takes `0-3` or `north|east|south|west`; the wire value sta
 
 ### 7.1 Credentials and profiles
 
-A signed-in device holds its bearer token in `~/.config/t42/config.json` (honouring
+A signed-in device holds its bearer token in `~/.config/tricksy/config.json` (honouring
 `XDG_CONFIG_HOME`), written `0600`, alongside the API base URL. A file rather than an environment
-variable, because a token minted by `t42 login` has to outlive the shell that ran it - the same
+variable, because a token minted by `tricksy login` has to outlive the shell that ran it - the same
 reasoning that makes tokens non-expiring in section 6.1.
 
-The file holds a map of named **profiles**, each one player: `--profile` or `T42_PROFILE` selects
+The file holds a map of named **profiles**, each one player: `--profile` or `TRICKSY_PROFILE` selects
 one. This is not a convenience. A four-handed game needs four accounts, and the MVP's own
 dogfooding milestone is one person driving all four from one machine; without profiles that means
 four separate home directories. It also happens to be what a Phase 6 bot needs to run beside its
@@ -528,7 +532,7 @@ machinery guarding a case the turn order already rules out.
 
 ### 7.3 What the CLI points at
 
-`--api-url`, or `T42_API_URL`, defaulting to `http://127.0.0.1:8000`. For the MVP that is a local
+`--api-url`, or `TRICKSY_API_URL`, defaulting to `http://127.0.0.1:8000`. For the MVP that is a local
 `uvicorn` over DynamoDB Local, which is what the dogfooded game is played against; deploy scripting
 stays in Phase 5 (section 10). The base URL is the whole of the CLI's coupling to where the server
 lives, so a provisioned endpoint later is a configuration change and not a code change.
@@ -536,7 +540,7 @@ lives, so a provisioned endpoint later is a configuration change and not a code 
 ## 8. Notifications (MVP)
 
 A game measured in hours only works if a player who is not watching a terminal is told when
-something needs them. DynamoDB Streams on the `Texas42` table triggers a notification Lambda, which
+something needs them. DynamoDB Streams on the `Tricksy` table triggers a notification Lambda, which
 sends an email via SES ("It's your turn in game 7F3AKM"). No push infrastructure is needed for a
 CLI-only MVP, and this is the extension point for SMS, push or a chat bot later - a new
 implementation of the sender protocol, not a new trigger, because the interesting work is deciding
@@ -611,11 +615,11 @@ Because the domain engine and the player-projected view are both client-agnostic
 
 - **Web app**: new frontend calling the same REST API; swap API-key auth for a session-based auth if desired; render the same projected-view JSON instead of CLI text.
 - **Mobile app**: same API; add push notifications (APNs/FCM) as an alternative branch in the Phase 4 notification Lambda, keyed off a device token registered per player, no change to game logic.
-- **Chatbot (Slack/Discord)**: same API; the bot posts the projected view as a formatted message and maps chat commands (`/t42 bid 32`) to the same endpoints. Turn notifications become bot DMs instead of email — again, just a new branch in the notification Lambda.
+- **Chatbot (Slack/Discord)**: same API; the bot posts the projected view as a formatted message and maps chat commands (`/tricksy bid 32`) to the same endpoints. Turn notifications become bot DMs instead of email — again, just a new branch in the notification Lambda.
 
 None of these require touching the domain engine, persistence layer, or API contract, provided the projected-view shape stays generic (plain data, not CLI-formatted text) from day one. Worth double-checking in Phase 1 that `project()` returns structured JSON rather than anything CLI-specific.
 
-The Phase 3 CLI is the first test of this claim rather than a restatement of it, because it imports nothing from `t42.engine` or `t42.storage` (section 7). That is checkable, and checked: if the CLI can be written against the API alone, so can a client that is not written in Python at all.
+The Phase 3 CLI is the first test of this claim rather than a restatement of it, because it imports nothing from `tricksy.games.texas42` or `tricksy.storage` (section 7). That is checkable, and checked: if the CLI can be written against the API alone, so can a client that is not written in Python at all.
 
 ### 11.1 Notes for a second game
 
@@ -627,17 +631,21 @@ What was done instead, while nothing was yet deployed, is a small set of hedges 
 
 A discriminator missing from a persisted item is a backfill over an immutable event log (invariant 6), and a URL is settled the moment a client depends on it. A missing abstraction in `codec.py` is a refactor - no more expensive in two years than today, and cheaper then, because the second game's actual shape would be known rather than guessed. So the disk and wire were hedged and the code was not:
 
-- **`kind` is written on every item that needs to be self-describing**: `GAME#/META`, `GAME#/STATE`, `PLAYER#/GAME#` and `PLAYER#/RULESET#`, from `t42.engine.GAME_KIND` (`"texas42"`). It is read back with a default, so an item written before it existed still decodes. `EVENT#` items deliberately carry none: they are partition-scoped under a `GAME#` whose `META` already says the kind, and the log is never replayed without the `config` and `players` that come from that same item. A saved rule set's `kind` must match the table it is applied to - checked in the game-creation handler, the only place the two meet.
+- **`kind` is written on every item that needs to be self-describing**: `GAME#/META`, `GAME#/STATE`, `PLAYER#/GAME#` and `PLAYER#/RULESET#`, from `tricksy.games.texas42.GAME_KIND` (`"texas42"`). It is read back with a default, so an item written before it existed still decodes. `EVENT#` items deliberately carry none: they are partition-scoped under a `GAME#` whose `META` already says the kind, and the log is never replayed without the `config` and `players` that come from that same item. A saved rule set's `kind` must match the table it is applied to - checked in the game-creation handler, the only place the two meet.
 - **The `OpenGames` GSI partition is `OPEN#<kind>`**, not a bare `OPEN`. A GSI key format is settled by the data already indexed under it.
-- **The lobby no longer derives its table size from the engine.** `seat_count` is stored on `META`, seats are plain `int` throughout `t42.storage.lobby`, and "is this table full" is a count against the stored number rather than `len(Seat)`. The one place the engine's own `Seat` type re-enters is `_deal`, which is the call into the engine. This was the only hard four-handed assumption outside the engine.
-- **`META.scores` is an open `{label: int}` map**, not a fixed pair of partnership keys. For 42 the labels are `north_south`/`east_west`, and nothing that reads it knows that. This is what makes `t42.notifications` free of any one game's scoring shape - it already imported nothing from `t42.engine`, and now nothing in it encodes how 42 scores either.
+- **The lobby no longer derives its table size from the engine.** `seat_count` is stored on `META`, seats are plain `int` throughout `tricksy.storage.lobby`, and "is this table full" is a count against the stored number rather than `len(Seat)`. The one place the engine's own `Seat` type re-enters is `_deal`, which is the call into the engine. This was the only hard four-handed assumption outside the engine.
+- **`META.scores` is an open `{label: int}` map**, not a fixed pair of partnership keys. For 42 the labels are `north_south`/`east_west`, and nothing that reads it knows that. This is what makes `tricksy.notifications` free of any one game's scoring shape - it already imported nothing from `tricksy.games.texas42`, and now nothing in it encodes how 42 scores either.
 - **All moves go to one endpoint, `POST /games/{id}/moves`**, discriminated on `kind`, replacing `/bid`, `/contract` and `/play`. This is a simplification on its own terms: `_submit` never inspects the move, so the three URLs carried nothing the body did not, and the `kind` tags are exactly the ones `project()` puts on each `legal_moves` entry - so a client can post back what the server just offered it, with no table mapping kinds to paths. A game with a different move vocabulary is a different union behind the same route.
 
-Deliberately **not** done, all of it pure code with nothing persisted or exposed at stake: a `Game` protocol or game registry; a per-kind codec registry over `codec.py`/`events.py`/`replay.py`; a generic move/event envelope in the engine; renaming `t42.engine` to something like `t42.games.texas42`; per-kind dispatch in `t42.cli.render`.
+Deliberately **not** done, all of it pure code with nothing persisted or exposed at stake: a `Game` protocol or game registry; a per-kind codec registry over `codec.py`/`events.py`/`replay.py`; a generic move/event envelope in the engine; per-kind dispatch in `tricksy.cli.render`.
 
-If a second game is ever wanted, the extraction boundary is already small: `new_game` / `apply_move` / `legal_moves` / `project`, a codec quintuple, and `events_for_move`. Everything `t42.storage` does with a `GameState` beyond encode and decode is three accessors - `.phase` for `GAME_OVER`, `.players` plus `.to_act` for the `is_my_turn` denormalization, and `.marks` for the score denormalization.
+**The engine's package path is the one exception, and it is a rename rather than an exception to the rule.** The rules engine was `t42.engine` when the project itself was called `t42`; it is now `tricksy.games.texas42` under the project name `tricksy`. Moving it was free at the moment the whole package was being renamed anyway, and doing it then cost one churn of ~300 import lines instead of two. Nothing about the move is an abstraction: there is still no `Game` protocol, no registry, and no dispatch, and `tricksy.storage` still imports one concrete engine by name. What changed is that the project no longer shares a name with the single game it implements, so `tricksy.storage`, `tricksy.api` and `tricksy.notifications` no longer read as 42-specific when none of them are. `GAME_KIND` stayed `"texas42"`, since that value names the game and is already written to disk and returned on the wire.
 
-One thing a second engine would have to honour, worth knowing because it is invisible from the outside: `t42.storage.replay` deals by substituting a recorded deal for `Random.shuffle`, so it depends on the engine dealing with **exactly one `rng.shuffle(deck)` per hand**, sliced in seat order. An engine that deals differently would make replay drift silently rather than fail. Both docstrings say so.
+The one thing the new directory does buy is a sharper layering check: `tests/cli/test_layering.py` and `tests/notifications/test_layering.py` now forbid the whole `tricksy.games` package rather than one engine by name, so a second engine is covered the day it is added rather than the day someone remembers those files.
+
+If a second game is ever wanted, the extraction boundary is already small: `new_game` / `apply_move` / `legal_moves` / `project`, a codec quintuple, and `events_for_move` - the public surface of `tricksy.games.texas42`, which is what a sibling package under `tricksy.games` would have to supply. Everything `tricksy.storage` does with a `GameState` beyond encode and decode is three accessors - `.phase` for `GAME_OVER`, `.players` plus `.to_act` for the `is_my_turn` denormalization, and `.marks` for the score denormalization.
+
+One thing a second engine would have to honour, worth knowing because it is invisible from the outside: `tricksy.storage.replay` deals by substituting a recorded deal for `Random.shuffle`, so it depends on the engine dealing with **exactly one `rng.shuffle(deck)` per hand**, sliced in seat order. An engine that deals differently would make replay drift silently rather than fail. Both docstrings say so.
 
 ## 12. Open Questions
 
@@ -682,7 +690,7 @@ One thing a second engine would have to honour, worth knowing because it is invi
 - Resolved: **bot players are a client of the public API, not a server-side special case**
   (section 13), and are sequenced last.
 - Resolved: **the CLI is a client, not a component** (section 7). It imports nothing from
-  `t42.engine` or `t42.storage` and keeps its own seat and suit label tables, rather than importing
+  `tricksy.games.texas42` or `tricksy.storage` and keeps its own seat and suit label tables, rather than importing
   the enums for a nicer rendering. The alternative saves a small duplicated name table and costs the
   only executable evidence for section 11's claim that a non-Python client loses nothing; a suit
   table cannot drift far, since the tile set is fixed by the game.
@@ -768,14 +776,14 @@ a pipeline plus a staging environment would buy nothing that the fast suite and 
 integration suite do not already catch. A CI deploy is Phase 7's, added when deploying by hand is
 demonstrably annoying rather than in anticipation of it.
 
-The stack is small: the `Texas42` table, two Lambda functions from one bundle
-(`t42.api.lambda_handler.handler` behind an API Gateway HTTP API, and
-`t42.notifications.handler.lambda_handler` behind a DynamoDB Streams event-source mapping with a
+The stack is small: the `Tricksy` table, two Lambda functions from one bundle
+(`tricksy.api.lambda_handler.handler` behind an API Gateway HTTP API, and
+`tricksy.notifications.handler.lambda_handler` behind a DynamoDB Streams event-source mapping with a
 dead-letter queue), the IAM to connect them, SES identities, log retention, a handful of alarms
 and a monthly budget. The table is deployed with `RETAIN`, point-in-time recovery and deletion
 protection, which is the difference between the real one and the one a test fixture creates.
 
-**The table is therefore defined twice** - `t42.storage.schema.create_table` for local runs and
+**The table is therefore defined twice** - `tricksy.storage.schema.create_table` for local runs and
 tests, the stack for AWS - because `create_table` is written as literal boto3 kwargs to satisfy
 boto3-stubs' overloads and cannot be splatted into a CDK construct. A synthesized-template parity
 test is what keeps the two honest, in preference to contorting either side into feeding the other.

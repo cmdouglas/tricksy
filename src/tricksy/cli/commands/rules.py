@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import argparse
 
-from t42.cli import render
-from t42.cli.command import Command
-from t42.cli.context import build_client, emit
-from t42.cli.houserules import add_house_rule_flags, house_rules_body
+from tricksy.cli import render
+from tricksy.cli.command import Command
+from tricksy.cli.context import build_client, emit
+from tricksy.cli.houserules import add_house_rule_flags, house_rules_body
 
 
 def _configure(parser: argparse.ArgumentParser) -> None:

@@ -10,9 +10,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from t42.engine.contracts import available
-from t42.engine.dominoes import FULL_SET, Domino
-from t42.engine.events import (
+from tricksy.games.texas42.contracts import available
+from tricksy.games.texas42.dominoes import FULL_SET, Domino
+from tricksy.games.texas42.events import (
     BidConfirmed,
     BidPlaced,
     ContractDeclared,
@@ -20,11 +20,11 @@ from t42.engine.events import (
     HandDealt,
     Passed,
 )
-from t42.engine.game import new_game
-from t42.engine.house_rules import AllowDeclaredLead, HouseRules
-from t42.engine.state import GameState, Seat
-from t42.engine.suits import Suit
-from t42.storage import (
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import AllowDeclaredLead, HouseRules
+from tricksy.games.texas42.state import GameState, Seat
+from tricksy.games.texas42.suits import Suit
+from tricksy.storage import (
     decode_event,
     decode_game_state,
     decode_house_rules,
@@ -33,7 +33,7 @@ from t42.storage import (
     encode_house_rules,
 )
 
-from ..engine._helpers import PLAYERS, drive_to_game_over, prefer_contract
+from ..games.texas42._helpers import PLAYERS, drive_to_game_over, prefer_contract
 
 _ALLOW_DECLARED_LEAD_VALUES: tuple[AllowDeclaredLead, ...] = ("never", "first_trick", "always")
 

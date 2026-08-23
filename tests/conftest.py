@@ -23,14 +23,14 @@ from moto import mock_aws
 from mypy_boto3_dynamodb.service_resource import Table
 from testcontainers.core.container import DockerContainer
 
-from t42.storage.schema import create_table
+from tricksy.storage.schema import create_table
 
 
 @pytest.fixture
 def table() -> Iterator[Table]:
     with mock_aws():
         resource = boto3.resource("dynamodb", region_name="us-east-1")
-        yield create_table(resource, "Texas42")
+        yield create_table(resource, "Tricksy")
 
 
 @pytest.fixture(scope="session")
@@ -64,7 +64,7 @@ def dynamodb_local() -> Iterator[str]:
 
 @pytest.fixture
 def real_table(dynamodb_local: str) -> Iterator[Table]:
-    """A fresh ``Texas42`` table in the real DynamoDB Local instance, created before and dropped
+    """A fresh ``Tricksy`` table in the real DynamoDB Local instance, created before and dropped
     after each test - the same per-test isolation the moto ``table`` fixture gives, just against a
     long-lived container instead of a fresh mock."""
     resource = boto3.resource(
@@ -74,7 +74,7 @@ def real_table(dynamodb_local: str) -> Iterator[Table]:
         aws_access_key_id="local",
         aws_secret_access_key="local",
     )
-    table = create_table(resource, "Texas42")
+    table = create_table(resource, "Tricksy")
     table.wait_until_exists()
     try:
         yield table

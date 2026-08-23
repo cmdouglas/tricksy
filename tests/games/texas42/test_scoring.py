@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from t42.engine.dominoes import FULL_SET, Domino
-from t42.engine.scoring import (
+from tricksy.games.texas42.dominoes import FULL_SET, Domino
+from tricksy.games.texas42.scoring import (
     COUNT_VALUES,
     HAND_COUNT_TOTAL,
     MAX_HAND_POINTS,

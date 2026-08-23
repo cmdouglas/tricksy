@@ -1,13 +1,13 @@
 """Local credentials file (ROADMAP.md 3.1, DESIGN.md §7.1).
 
-A signed-in device holds its bearer token in ``~/.config/t42/config.json`` (honouring
-``XDG_CONFIG_HOME``) rather than an environment variable, because a token minted by ``t42 login``
-has to outlive the shell that ran it. The file holds a map of named **profiles**, each one player -
-``--profile``/``T42_PROFILE`` selects one at invocation time. Profiles are what let one person play
-all four seats of a game from one machine, which is this phase's own dogfooding milestone
-(ROADMAP.md 3.7).
+A signed-in device holds its bearer token in ``~/.config/tricksy/config.json`` (honouring
+``XDG_CONFIG_HOME``) rather than an environment variable, because a token minted by
+``tricksy login`` has to outlive the shell that ran it. The file holds a map of named **profiles**,
+each one player - ``--profile``/``TRICKSY_PROFILE`` selects one at invocation time. Profiles are
+what let one person play all four seats of a game from one machine, which is this phase's own
+dogfooding milestone (ROADMAP.md 3.7).
 
-Nothing in this module talks to the network or reads ``--profile``/``T42_PROFILE`` - it is pure
+Nothing in this module talks to the network or reads ``--profile``/``TRICKSY_PROFILE``. It is pure
 file I/O over a JSON shape, reused as-is starting in ROADMAP.md 3.4 by every command that needs
 credentials.
 """
@@ -45,7 +45,7 @@ class Config:
 def config_path() -> Path:
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
     base = Path(xdg_config_home) if xdg_config_home else Path.home() / ".config"
-    return base / "t42" / "config.json"
+    return base / "tricksy" / "config.json"
 
 
 def load(path: Path | None = None) -> Config:
@@ -112,7 +112,7 @@ def _config_from_dict(data: Any, source: Path) -> Config:
             for name, p in raw_profiles.items()
         }
     except (AttributeError, KeyError, TypeError) as exc:
-        raise ConfigError(f"{source} is not a valid t42 config file: {exc}") from exc
+        raise ConfigError(f"{source} is not a valid tricksy config file: {exc}") from exc
 
     return Config(api_url=api_url, profiles=profiles)
 

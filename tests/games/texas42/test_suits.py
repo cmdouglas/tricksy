@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from t42.engine.dominoes import FULL_SET, Domino
-from t42.engine.house_rules import HouseRules
-from t42.engine.suits import (
+from tricksy.games.texas42.dominoes import FULL_SET, Domino
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.suits import (
     NUMBER_SUITS,
     Suit,
     belongs_to,

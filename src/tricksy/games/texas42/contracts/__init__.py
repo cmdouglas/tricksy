@@ -1,7 +1,7 @@
 """Contract strategies, keyed by name.
 
 Importing this package registers every built-in contract. A game may still restrict which of them
-are legal to bid through its :class:`~t42.engine.house_rules.HouseRules`.
+are legal to bid through its :class:`~tricksy.games.texas42.house_rules.HouseRules`.
 """
 
 from __future__ import annotations

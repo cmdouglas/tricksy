@@ -8,7 +8,7 @@ engine, and it keeps this module trivially testable against a moto-backed table.
 
 The boto3 wrinkles this module works around - ``TransactWriteItems`` living only on the client,
 and the resource API deserializing numbers to ``Decimal`` - are handled by
-:mod:`t42.storage._dynamo`, which documents both.
+:mod:`tricksy.storage._dynamo`, which documents both.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ from typing import Any, cast
 from botocore.exceptions import ClientError
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine import GAME_KIND
-from t42.engine.events import Event
-from t42.engine.game import new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import GameId, GameState, Phase, PlayerId, Seat, Team
+from tricksy.games.texas42 import GAME_KIND
+from tricksy.games.texas42.events import Event
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import GameId, GameState, Phase, PlayerId, Seat, Team
 
 from ._dynamo import from_dynamo, is_transaction_cancelled, transact_write
 from .codec import decode_game_state, encode_event, encode_game_state
@@ -102,10 +102,10 @@ def start_game(
     ``WAITING`` to ``ACTIVE``, all in one transaction. The ``META`` update is *conditioned on the
     status still being* ``WAITING``, which is what makes the deal happen exactly once even if two
     attempts race: the loser's whole transaction is cancelled, so it writes no event and no state
-    either, and sees :class:`~t42.storage.errors.GameAlreadyStarted`.
+    either, and sees :class:`~tricksy.storage.errors.GameAlreadyStarted`.
 
-    The ``PLAYER#`` items already exist - :func:`t42.storage.lobby.join_seat` writes one per seat
-    as players arrive - so this updates their turn and status rather than creating them.
+    The ``PLAYER#`` items already exist - :func:`tricksy.storage.lobby.join_seat` writes one per
+    seat as players arrive - so this updates their turn and status rather than creating them.
     """
     state = new_game(game_id, players, config, rng=rng)
     assert state.hand is not None
@@ -293,8 +293,8 @@ def append(
         #
         # Written as an open ``{label: score}`` map keyed on the scoring side's own name, not as a
         # fixed pair of keys, so the handler that reads it needs no notion of partnerships - which
-        # is what keeps ``t42.notifications`` free of any one game's scoring shape (DESIGN.md §11).
-        # For 42 the labels are ``north_south``/``east_west``, exactly as before.
+        # is what keeps ``tricksy.notifications`` free of any one game's scoring shape (DESIGN.md
+        # §11). For 42 the labels are ``north_south``/``east_west``, exactly as before.
         meta_expression += ", scores = :scores"
         meta_values[":scores"] = {team.name.lower(): new_state.marks.get(team, 0) for team in Team}
     transact_items.append(

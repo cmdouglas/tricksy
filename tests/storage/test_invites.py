@@ -7,17 +7,17 @@ from random import Random
 import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import Seat
-from t42.storage.errors import GameNotFound, NotInvited
-from t42.storage.invites import (
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import Seat
+from tricksy.storage.errors import GameNotFound, NotInvited
+from tricksy.storage.invites import (
     find_invite,
     invite_player,
     list_invites_for_game,
     list_invites_for_player,
     revoke_invite,
 )
-from t42.storage.lobby import Visibility, create_pending_game, get_lobby, join_seat
+from tricksy.storage.lobby import Visibility, create_pending_game, get_lobby, join_seat
 
 
 def _open_lobby(table: Table, visibility: Visibility, game_id: str = "g1") -> None:

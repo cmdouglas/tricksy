@@ -8,11 +8,11 @@ import argparse
 import sys
 from typing import cast
 
-from t42.cli import config, render
-from t42.cli.api import ApiError
-from t42.cli.command import Command
-from t42.cli.context import build_client, emit
-from t42.cli.houserules import (
+from tricksy.cli import config, render
+from tricksy.cli.api import ApiError
+from tricksy.cli.command import Command
+from tricksy.cli.context import build_client, emit
+from tricksy.cli.houserules import (
     add_house_rule_flags,
     any_house_rule_flag_given,
     house_rules_body,

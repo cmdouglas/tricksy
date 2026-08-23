@@ -6,11 +6,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from random import Random
 
-from t42.engine.dominoes import FULL_SET, Domino
-from t42.engine.game import apply_move, legal_moves
-from t42.engine.house_rules import STANDARD_CONTRACT, HouseRules
-from t42.engine.moves import ConfirmBid, Move, Pass, PlaceBid
-from t42.engine.state import GameState, HandState, Phase, PlayerId, Seat, Team
+from tricksy.games.texas42.dominoes import FULL_SET, Domino
+from tricksy.games.texas42.game import apply_move, legal_moves
+from tricksy.games.texas42.house_rules import STANDARD_CONTRACT, HouseRules
+from tricksy.games.texas42.moves import ConfirmBid, Move, Pass, PlaceBid
+from tricksy.games.texas42.state import GameState, HandState, Phase, PlayerId, Seat, Team
 
 PLAYERS: dict[Seat, PlayerId] = {
     Seat.NORTH: "north",

@@ -14,12 +14,12 @@ reachable (the same shape as the ``USERNAME#``/``PLAYER#`` pair in ``accounts.cr
     The same fact from the invitee's side, so "my pending invites" is one ``Query``.
 
 **This module knows nothing about lobbies.** Whether a game is still ``WAITING`` and whether the
-invitee already holds a seat are both questions that need a ``Lobby``, and ``t42.storage.lobby``
+invitee already holds a seat are both questions that need a ``Lobby``, and ``tricksy.storage.lobby``
 already needs *this* module (to gate ``join_seat`` and to revoke a consumed invite) - so importing
-``Lobby`` here would be circular. ``t42.api.app``'s invite handler, which fetches the ``Lobby`` to
-check the caller is seated anyway, does that validation and calls straight through to
-``invite_player`` once it has, the same "dumb storage, smart handler" split ROADMAP.md 2.7.2 already
-prescribes for enriching "my pending invites".
+``Lobby`` here would be circular. ``tricksy.api.app``'s invite handler, which fetches the ``Lobby``
+to check the caller is seated anyway, does that validation and calls straight through to
+``invite_player`` once it has, the same "dumb storage, smart handler" split ROADMAP.md 2.7.2
+already prescribes for enriching "my pending invites".
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from typing import Any
 
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine.state import GameId, PlayerId
+from tricksy.games.texas42.state import GameId, PlayerId
 
 from ._dynamo import as_text, from_dynamo, transact_write
 

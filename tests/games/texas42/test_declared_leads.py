@@ -9,14 +9,23 @@ from random import Random
 
 import pytest
 
-from t42.engine.dominoes import Domino
-from t42.engine.errors import IllegalMove
-from t42.engine.game import apply_move, legal_moves, new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move, PlayDomino
-from t42.engine.state import Bid, GameState, HandState, Phase, PlayedDomino, Seat, Team, Trick
-from t42.engine.suits import Suit
-from t42.engine.tricks import play
+from tricksy.games.texas42.dominoes import Domino
+from tricksy.games.texas42.errors import IllegalMove
+from tricksy.games.texas42.game import apply_move, legal_moves, new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move, PlayDomino
+from tricksy.games.texas42.state import (
+    Bid,
+    GameState,
+    HandState,
+    Phase,
+    PlayedDomino,
+    Seat,
+    Team,
+    Trick,
+)
+from tricksy.games.texas42.suits import Suit
+from tricksy.games.texas42.tricks import play
 
 from ._helpers import PLAYERS, custom_deal, player_of
 

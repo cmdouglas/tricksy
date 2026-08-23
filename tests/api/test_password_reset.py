@@ -15,14 +15,14 @@ def _verify(client: TestClient, player: Client, address: str, fake_sender: FakeS
     """Adds and verifies one contact channel, through the real 4.2 endpoints."""
     player.post("/players/me/contacts", {"kind": "email", "address": address})
     player.post(f"/players/me/contacts/{address}/verification")
-    match = re.search(r"t42 contact confirm (\S+)", fake_sender.sent[-1].body)
+    match = re.search(r"tricksy contact confirm (\S+)", fake_sender.sent[-1].body)
     assert match is not None, fake_sender.sent[-1].body
     response = client.post("/contacts/verify", json={"token": match.group(1)})
     assert response.status_code == 204, response.text
 
 
 def _reset_token_from(sender: FakeSender) -> str:
-    match = re.search(r"t42 reset-password (\S+)", sender.sent[-1].body)
+    match = re.search(r"tricksy reset-password (\S+)", sender.sent[-1].body)
     assert match is not None, sender.sent[-1].body
     return match.group(1)
 

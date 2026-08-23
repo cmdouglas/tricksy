@@ -1,11 +1,12 @@
 """Response data to text (ROADMAP.md 3.3).
 
 Every function here is a pure ``dict -> str``: no HTTP, no ``argparse``, and - like every module
-under ``t42.cli`` - no import from ``t42.engine``, ``t42.storage`` or boto3 (DESIGN.md §7). That
-last constraint is why ``_SEATS`` and ``_SUITS`` below duplicate what ``Seat``/``Suit`` already
-encode as integers on the wire: a CLI that reached for the engine's enums to print "fives" would be
-a client a web or chatbot front end couldn't be written the same way as, and a double-six set does
-not grow an eighth suit, so the duplication risk is bounded (DESIGN.md §7).
+under ``tricksy.cli`` - no import from ``tricksy.games.texas42``, ``tricksy.storage`` or boto3
+(DESIGN.md §7). That last constraint is why ``_SEATS`` and ``_SUITS`` below duplicate what
+``Seat``/``Suit`` already encode as integers on the wire: a CLI that reached for the engine's enums
+to print "fives" would be a client a web or chatbot front end couldn't be written the same way as,
+and a double-six set does not grow an eighth suit, so the duplication risk is bounded (DESIGN.md
+§7).
 
 The other governing rule is that this module never derives anything the server didn't already say.
 ``render_legal_moves`` does not decide what's legal - it formats ``view["legal_moves"]``, which the
@@ -48,7 +49,7 @@ def _trump_label(trump: int | None) -> str:
 
 def _trump_value(trump: int | None) -> str:
     """The ``trump=<x>`` token spelling a rendered ``declare`` command uses (DESIGN.md §7:
-    ``t42 declare <code> trump=none``) - distinct from :func:`_trump_label` because prose and a
+    ``tricksy declare <code> trump=none``) - distinct from :func:`_trump_label` because prose and a
     command token spell "no trump" differently."""
     return "none" if trump is None else _suit_name(trump)
 
@@ -156,24 +157,24 @@ def _render_move_command(move: dict[str, Any], game_id: str) -> str:
 
     if kind == "BID":
         if move["points"] is not None:
-            return f"t42 bid {game_id} {move['points']}"
+            return f"tricksy bid {game_id} {move['points']}"
         marks = move["marks"]
         unit = "mark" if marks == 1 else "marks"
         contract_flag = f" --contract {move['contract']}" if move["contract"] is not None else ""
-        return f"t42 bid {game_id} {marks}-{unit}{contract_flag}"
+        return f"tricksy bid {game_id} {marks}-{unit}{contract_flag}"
     if kind == "PASS":
-        return f"t42 bid {game_id} pass"
+        return f"tricksy bid {game_id} pass"
     if kind == "CONFIRM_BID":
-        return f"t42 bid {game_id} {'confirm' if move['accept'] else 'decline'}"
+        return f"tricksy bid {game_id} {'confirm' if move['accept'] else 'decline'}"
     if kind == "DECLARE_CONTRACT":
-        return f"t42 declare {game_id} trump={_trump_value(move['trump'])}"
+        return f"tricksy declare {game_id} trump={_trump_value(move['trump'])}"
     if kind == "PLAY_DOMINO":
         declare_flag = (
             f" --declare {_suit_name(move['declared_suit'])}"
             if move["declared_suit"] is not None
             else ""
         )
-        return f"t42 play {game_id} {move['domino']}{declare_flag}"
+        return f"tricksy play {game_id} {move['domino']}{declare_flag}"
     raise ValueError(f"unknown move kind: {kind!r}")
 
 

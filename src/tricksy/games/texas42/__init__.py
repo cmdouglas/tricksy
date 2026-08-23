@@ -1,8 +1,12 @@
 """Pure Texas 42 rules engine (DESIGN.md §5).
 
-This package must stay free of I/O, AWS SDK calls and any dependency on ``t42.storage``,
-``t42.api`` or ``t42.cli``: it takes a state plus a proposed move and returns a new state or
-raises. That is what keeps the rules testable in isolation and reusable behind any client.
+This package must stay free of I/O, AWS SDK calls and any dependency on ``tricksy.storage``,
+``tricksy.api`` or ``tricksy.cli``: it takes a state plus a proposed move and returns a new state
+or raises. That is what keeps the rules testable in isolation and reusable behind any client.
+
+The names below are this engine's whole public surface, and therefore the shape a second game
+would have to supply if one were ever wanted: ``new_game``/``apply_move``/``legal_moves``/
+``project``, plus the state and move types the codec knows how to write down. See DESIGN.md §11.1.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ from .suits import Suit, Trump, follows, is_trump, led_suit, rank_in_suit
 #: What this engine is, as a value the storage and API layers can write down and hand back.
 #:
 #: Nothing here dispatches on it - there is exactly one engine, and this package is it. The point
-#: is that every game persisted by ``t42.storage`` and every game named on the wire says which
+#: is that every game persisted by ``tricksy.storage`` and every game named on the wire says which
 #: rules produced it, so a second game would be a new value rather than a backfill over an
 #: immutable event log (invariant 6). See DESIGN.md §11.
 GAME_KIND: Final[str] = "texas42"

@@ -1,10 +1,11 @@
 """Generic trick-play algorithms shared by contract implementations.
 
-Lives below both :mod:`t42.engine.contracts` and :mod:`t42.engine.tricks` in the dependency
-graph, since :mod:`t42.engine.tricks` needs to import :mod:`t42.engine.contracts` (to look up the
-active contract) and contracts need these helpers - putting the helpers here means neither module
-has to import the other. Most contracts' ``legal_plays``/``trick_winner`` are exactly these
-functions; a contract only needs its own logic where it genuinely differs (sevens' trick winner).
+Lives below both :mod:`tricksy.games.texas42.contracts` and :mod:`tricksy.games.texas42.tricks` in
+the dependency graph, since :mod:`tricksy.games.texas42.tricks` needs to import
+:mod:`tricksy.games.texas42.contracts` (to look up the active contract) and contracts need these
+helpers - putting the helpers here means neither module has to import the other. Most contracts'
+``legal_plays``/``trick_winner`` are exactly these functions; a contract only needs its own logic
+where it genuinely differs (sevens' trick winner).
 """
 
 from __future__ import annotations

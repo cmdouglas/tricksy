@@ -8,16 +8,16 @@ from random import Random
 
 import pytest
 
-from t42.engine.contracts import available
-from t42.engine.events import Event, Passed
-from t42.engine.game import new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move
-from t42.engine.state import GameState
-from t42.storage.events import events_for_move, hand_dealt_event
-from t42.storage.replay import replay
+from tricksy.games.texas42.contracts import available
+from tricksy.games.texas42.events import Event, Passed
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move
+from tricksy.games.texas42.state import GameState
+from tricksy.storage.events import events_for_move, hand_dealt_event
+from tricksy.storage.replay import replay
 
-from ..engine._helpers import PLAYERS, Chooser, drive_to_game_over, prefer_contract
+from ..games.texas42._helpers import PLAYERS, Chooser, drive_to_game_over, prefer_contract
 
 
 def _play_full_game(

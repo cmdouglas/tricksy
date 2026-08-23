@@ -6,16 +6,17 @@ Two conventions here are worth knowing before reading the models.
 are the primitives in range". Whether a bid is legal, whether a rule set is coherent, whether a
 tile is in your hand - all of that belongs to the engine, which already does it and is the only
 place it should be done (invariant 4 in particular: no model here may enumerate contract names).
-``HouseRulesRequest`` therefore converts to a :class:`~t42.engine.house_rules.HouseRules` and lets
-``__post_init__`` and ``contracts.validate_house_rules`` decide, rather than restating any of it.
+``HouseRulesRequest`` therefore converts to a
+:class:`~tricksy.games.texas42.house_rules.HouseRules` and lets ``__post_init__`` and
+``contracts.validate_house_rules`` decide, rather than restating any of it.
 
-**Responses do not re-declare the projected view.** :func:`t42.engine.projection.project` is the
-one gate hidden information passes through (invariant 5). A pydantic mirror of its output would
-be a second definition of that shape, sitting next to the gate and free to drift away from it -
-and a drifted mirror is exactly how a field leaks. So ``GameResponse.view`` is typed as an opaque
-mapping and passed through untouched. The cost is that the OpenAPI schema describes the view as a
-free-form object; the benefit is that there is exactly one description of what a player may see,
-and it is executable.
+**Responses do not re-declare the projected view.** :func:`tricksy.games.texas42.projection.project`
+is the one gate hidden information passes through (invariant 5). A pydantic mirror of its output
+would be a second definition of that shape, sitting next to the gate and free to drift away from
+it - and a drifted mirror is exactly how a field leaks. So ``GameResponse.view`` is typed as an
+opaque mapping and passed through untouched. The cost is that the OpenAPI schema describes the
+view as a free-form object; the benefit is that there is exactly one description of what a player
+may see, and it is executable.
 """
 
 from __future__ import annotations
@@ -24,14 +25,21 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from t42.engine.dominoes import parse as parse_domino
-from t42.engine.house_rules import DEFAULT_CONTRACTS, DEFAULT_MARKS_TO_WIN, HouseRules
-from t42.engine.moves import ConfirmBid, DeclareContract, Move, Pass, PlaceBid, PlayDomino
-from t42.engine.state import PlayerId, Seat
-from t42.engine.suits import Suit
-from t42.storage.accounts import ContactChannel, Player
-from t42.storage.lobby import GameSummary, Lobby
-from t42.storage.rule_sets import RuleSet
+from tricksy.games.texas42.dominoes import parse as parse_domino
+from tricksy.games.texas42.house_rules import DEFAULT_CONTRACTS, DEFAULT_MARKS_TO_WIN, HouseRules
+from tricksy.games.texas42.moves import (
+    ConfirmBid,
+    DeclareContract,
+    Move,
+    Pass,
+    PlaceBid,
+    PlayDomino,
+)
+from tricksy.games.texas42.state import PlayerId, Seat
+from tricksy.games.texas42.suits import Suit
+from tricksy.storage.accounts import ContactChannel, Player
+from tricksy.storage.lobby import GameSummary, Lobby
+from tricksy.storage.rule_sets import RuleSet
 
 from .errors import invalid_request
 
@@ -214,8 +222,8 @@ class RuleSetListResponse(BaseModel):
 
 class CreateGameRequest(_Strict):
     """Takes either an inline house-rule body or a saved ``rule_set_id``, never both -
-    :func:`t42.api.app._resolve_house_rules` is what tells "not supplied" apart from "supplied as
-    the default", since ``house_rules`` has a ``default_factory``."""
+    :func:`tricksy.api.app._resolve_house_rules` is what tells "not supplied" apart from "supplied
+    as the default", since ``house_rules`` has a ``default_factory``."""
 
     seat: Seat = Seat.NORTH
     house_rules: HouseRulesRequest = Field(default_factory=HouseRulesRequest)
@@ -310,12 +318,12 @@ class PlayDominoBody(_Strict):
 #: Every move, discriminated on ``kind`` - the body of the one ``POST /games/{id}/moves`` endpoint
 #: (DESIGN.md §6).
 #:
-#: One endpoint rather than one per phase, because the three it replaced were the same handler
-#: three times over: :func:`t42.api.app._submit` never inspects the move, so the URL carried no
+#: One endpoint rather than one per phase, because the three it replaced were the same handler three
+#: times over: :func:`tricksy.api.app._submit` never inspects the move, so the URL carried no
 #: information the body did not already have. The ``kind`` tags are exactly the ones
-#: :func:`t42.engine.projection.project` puts on each entry of ``legal_moves``, so a client can
-#: post a legal move straight back without a table mapping kinds to paths - and a game with a
-#: different move vocabulary is a different union behind the same route (DESIGN.md §11).
+#: :func:`tricksy.games.texas42.projection.project` puts on each entry of ``legal_moves``, so a
+#: client can post a legal move straight back without a table mapping kinds to paths - and a game
+#: with a different move vocabulary is a different union behind the same route (DESIGN.md §11).
 MoveRequest = Annotated[
     BidBody | PassBody | ConfirmBidBody | DeclareContractBody | PlayDominoBody,
     Field(discriminator="kind"),
@@ -333,9 +341,9 @@ class GameResponse(BaseModel):
 
     ``view`` is ``None`` for a caller who is not seated - there is either no state yet to project
     (the game is still filling its lobby) or, per DESIGN.md §6.2, a non-seated caller simply never
-    reaches :func:`t42.engine.projection.project`, which stays the one gate hidden information
-    passes through even as who may *read* a lobby widens. See this module's docstring for why
-    ``view`` is not modelled field by field.
+    reaches :func:`tricksy.games.texas42.projection.project`, which stays the one gate hidden
+    information passes through even as who may *read* a lobby widens. See this module's docstring
+    for why ``view`` is not modelled field by field.
     """
 
     game_id: str
@@ -403,8 +411,8 @@ class OpenGamesResponse(BaseModel):
 
 def _house_rules_json(rules: HouseRules) -> dict[str, Any]:
     """The rule set as plain data for a client. Not shared with
-    :func:`t42.storage.codec.encode_house_rules`, for the same reason ``projection`` keeps its own
-    encoders: that one is a durable wire format, this is a read-model, and letting a storage
+    :func:`tricksy.storage.codec.encode_house_rules`, for the same reason ``projection`` keeps its
+    own encoders: that one is a durable wire format, this is a read-model, and letting a storage
     format leak into responses ties the two together."""
     return {
         "enabled_contracts": sorted(rules.enabled_contracts),

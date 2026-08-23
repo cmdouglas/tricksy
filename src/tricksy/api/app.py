@@ -17,15 +17,15 @@ from typing import Any
 from fastapi import FastAPI, status
 from mypy_boto3_dynamodb.service_resource import Table
 
-from t42.engine import GAME_KIND
-from t42.engine.errors import RulesError
-from t42.engine.game import apply_move
-from t42.engine.house_rules import HouseRules
-from t42.engine.moves import Move
-from t42.engine.projection import project
-from t42.engine.state import GameId, PlayerId
-from t42.notifications import render_password_reset, render_verify_contact
-from t42.storage.accounts import (
+from tricksy.games.texas42 import GAME_KIND
+from tricksy.games.texas42.errors import RulesError
+from tricksy.games.texas42.game import apply_move
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.moves import Move
+from tricksy.games.texas42.projection import project
+from tricksy.games.texas42.state import GameId, PlayerId
+from tricksy.notifications import render_password_reset, render_verify_contact
+from tricksy.storage.accounts import (
     ContactChannel,
     Player,
     add_contact,
@@ -44,7 +44,7 @@ from t42.storage.accounts import (
     revoke_token,
     set_contact_notify,
 )
-from t42.storage.errors import (
+from tricksy.storage.errors import (
     AlreadySeated,
     GameAlreadyExists,
     GameNotFound,
@@ -52,15 +52,15 @@ from t42.storage.errors import (
     PlayerNotFound,
     VersionConflict,
 )
-from t42.storage.events import events_for_move
-from t42.storage.invites import (
+from tricksy.storage.events import events_for_move
+from tricksy.storage.invites import (
     find_invite,
     invite_player,
     list_invites_for_game,
     list_invites_for_player,
     revoke_invite,
 )
-from t42.storage.lobby import (
+from tricksy.storage.lobby import (
     Lobby,
     Visibility,
     create_pending_game,
@@ -70,8 +70,8 @@ from t42.storage.lobby import (
     list_open_games,
     new_game_code,
 )
-from t42.storage.repository import GameStatus, append, find_request, get_state
-from t42.storage.rule_sets import (
+from tricksy.storage.repository import GameStatus, append, find_request, get_state
+from tricksy.storage.rule_sets import (
     create_rule_set,
     delete_rule_set,
     get_rule_set,
@@ -112,8 +112,8 @@ from .schemas import (
 )
 
 app = FastAPI(
-    title="Texas 42",
-    summary="Server-authoritative asynchronous Texas 42 (DESIGN.md §6)",
+    title="Tricksy",
+    summary="Server-authoritative asynchronous trick-taking games. Texas 42 (DESIGN.md §6).",
     version="0.1.0",
 )
 install_error_handlers(app)
@@ -270,9 +270,9 @@ def request_password_reset(
 
 @app.post("/password-resets/confirm", status_code=status.HTTP_204_NO_CONTENT)
 def confirm_password_reset(table: TableDep, body: PasswordResetConfirmRequest) -> None:
-    """Deliberately takes no bearer token, the same reason ``verify_contact`` doesn't: the token
-    in the body is itself the credential. Setting the new password and revoking every device
-    both happen inside :func:`~t42.storage.accounts.complete_password_reset` (DESIGN.md §6.1)."""
+    """Deliberately takes no bearer token, the same reason ``verify_contact`` doesn't: the token in
+    the body is itself the credential. Setting the new password and revoking every device both
+    happen inside :func:`~tricksy.storage.accounts.complete_password_reset` (DESIGN.md §6.1)."""
     complete_password_reset(table, body.token, body.new_password)
 
 

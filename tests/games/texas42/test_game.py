@@ -4,11 +4,11 @@ from random import Random
 
 import pytest
 
-from t42.engine.dominoes import FULL_SET
-from t42.engine.errors import UnknownContract
-from t42.engine.game import new_game
-from t42.engine.house_rules import HouseRules
-from t42.engine.state import Phase, Seat, Team
+from tricksy.games.texas42.dominoes import FULL_SET
+from tricksy.games.texas42.errors import UnknownContract
+from tricksy.games.texas42.game import new_game
+from tricksy.games.texas42.house_rules import HouseRules
+from tricksy.games.texas42.state import Phase, Seat, Team
 
 from ._helpers import PLAYERS
 
