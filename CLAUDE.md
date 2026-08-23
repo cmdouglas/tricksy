@@ -144,7 +144,7 @@ Two things worth knowing before touching the API layer:
   `_submit`, which is the single write path behind all three move endpoints.
 
 Deployment is deliberately not part of Phase 2 - there is a Mangum entry point and nothing
-provisioned. That changes in Phase 5 (DESIGN.md §14, ROADMAP.md 5.1-5.7), which is written out but
+provisioned. That changes in Phase 5 (DESIGN.md §14, ROADMAP.md 5.0-5.7), which is written out but
 not yet executed: still nothing provisioned.
 
 Phase 2.7 (tables) is complete, landing ahead of the CLI so its command set is written once
@@ -649,7 +649,7 @@ These are the rules that keep the design working. Breaking one is a design chang
 - Tests are table-driven or property-based where the input space is enumerable; the engine gets the
   heaviest test investment, since this is where domino implementations go subtly wrong.
 - Stubs raise `NotImplementedError("Phase N: <what>")` and have no tests written against them, so a
-  green suite always means what it says. Only `projection.py` is still a stub.
+  green suite always means what it says. No stubs remain as of Phase 4.
 - Contract rule variants (plunge/splash doubles-and-marks minimums, nello doubles handling,
   sevens tie-breaking, all-pass) are resolved and recorded in DESIGN.md §12 - read there before
   assuming a different regional rule.

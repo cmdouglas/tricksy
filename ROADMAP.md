@@ -838,6 +838,48 @@ Four decisions govern everything below.
   `tests/cli/test_layering.py` already made: a property that would otherwise be an argument in a
   docstring becomes a fact a test can fail on.
 
+### 5.0 Pre-deployment hardening
+
+Five findings from a pre-deployment audit of the codebase, done here rather than after 5.7 because
+every one of them is cheaper while no real data exists: three are correctness holes whose fix is a
+small code change today and a data-repair exercise once real accounts and games are in the table,
+and the other two are decisions that 5.3/5.4 would otherwise bake machinery around. None of them
+block local play, which is why no earlier phase caught them as an exit criterion.
+
+- **Make single-use token redemption atomic** (`accounts._redeem_single_use_token`). Today it is a
+  `get_item` followed by a separate unconditional `delete_item`, so two concurrent redemptions of
+  the same `VERIFY#`/`RESET#` token can both read the item before either deletes it and both
+  succeed - contradicting the docstring's "can never be replayed". Replace the pair with a single
+  `delete_item(Key=key, ReturnValues="ALL_OLD")` and treat an empty `Attributes` as invalid: the
+  delete becomes the atomic claim, and the function gets smaller rather than larger.
+- **Close the seat-claim/`PLAYER#` write gap** (`lobby.join_seat`, `lobby.create_pending_game`).
+  The seat claim on `META` and the `PLAYER#/GAME#` put are two non-transactional writes. A crash
+  between them leaves a held seat with no row - and it never heals, because `start_game` and
+  `append` both `UpdateItem` that key, which *creates* a partial item carrying only
+  `is_my_turn`/`status`/`version`. `list_games_for_player` then hits `KeyError` on `game_id`, so
+  every future "my games" read for that player is a 500. Fix by putting the claim and the put in
+  one `transact_write` (unlike the invite check, whose read-then-write trade `join_seat`'s
+  docstring defends, the put carries no condition of its own, so nothing about failure attribution
+  is lost), and make `list_games_for_player` skip rows missing `game_id` as defense in depth.
+- **Settle the notifier's send-failure semantics before 5.4 builds around them**
+  (`handler.send_notifications`). `_claim` marks a transition processed *before* the send, so on a
+  batch retry the claim returns false and the email is skipped - lost, not resent - and the same
+  holds for anything that reaches 5.4's DLQ. Claim-before-send is a defensible at-most-once
+  choice, but the code comment saying a send failure is "visible to Lambda's batch retry"
+  overpromises, and 5.4's retry/bisect/DLQ design currently assumes redelivery helps a failure
+  mode this ordering makes unretryable. Either keep at-most-once and correct the comment plus
+  5.4's rationale, or claim after a successful send and accept the occasional duplicate email.
+- **Cap the unbounded per-player lists** (`accounts.add_contact`, `RegisterRequest.contacts`,
+  `issue_token`). Contacts have no cap at either layer, so an authenticated loop can grow the
+  `PROFILE` item toward DynamoDB's 400KB item limit; devices likewise - every sign-in mints a
+  token pair, nothing expires them, and `complete_password_reset` loops over all of them. A small
+  cap (order of ten contacts, a few dozen devices) is two validations today and an awkward
+  migration conversation after real accounts exceed it.
+- **Give `HttpTransport` an explicit timeout** (`cli/api.py`). It currently rides on httpx2's
+  default. The first request to a cold Lambda - cold start plus a ~16 MiB scrypt on sign-in - can
+  plausibly brush a short default, and 5.7's dogfood game should not spend its time debugging a
+  transport setting. Choose one deliberately and write it down.
+
 ### 5.1 The CDK app and the table
 
 `infra/`: a `app.py` entry point, the stack module, and `cdk.json`. Dependencies go in an `infra`
@@ -931,13 +973,8 @@ Small on purpose: enough to know something broke, and no more.
 
 README gains a Deployment section: the prerequisites (an AWS account, the CDK CLI, one
 `cdk bootstrap`, Docker), `cdk deploy`, clicking through the SES verification mails, and pointing
-the CLI at the stack's output URL.
-
-Three staleness fixes ride along in the same pass, since this is the phase that reads that file
-closely. The Status paragraph still says Phases 0 through 2 are complete and that provisioning is
-an open question; the layout block never gained `src/tricksy/notifications/`; and the local-run
-instructions never gained `python -m tricksy.notifications.pump`, so the one documented way to run this
-project locally is missing half of Phase 4.
+the CLI at the stack's output URL. (An earlier version of this sub-phase also listed three README
+staleness fixes; they have since been made, so the Deployment section is all that is left here.)
 
 ### 5.7 The milestone: a real game against real infra
 
