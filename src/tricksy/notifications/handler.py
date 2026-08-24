@@ -121,11 +121,36 @@ def _recipient_email(player: Player) -> str | None:
     return None
 
 
+def _is_claimed(table: Table, notification: Notification) -> bool:
+    """Read-only check so a redelivered record that was already fully handled - by
+    :func:`_claim`, either after a successful send or after determining there was nothing to
+    send - can be skipped without repeating the work. Comes first, before any recipient lookup or
+    send, so that cheap case costs one ``GetItem`` and nothing else (ROADMAP.md 5.0: the write
+    half of this now happens only once a notification's outcome is known, so it can no longer do
+    double duty as the up-front gate the way a single conditional write once did)."""
+    if notification.kind == "invite":
+        key = {"PK": f"PLAYER#{notification.player_id}", "SK": f"INVITE#{notification.game_id}"}
+        item = table.get_item(Key=key, ProjectionExpression=_NOTIFIED_ATTR).get("Item")
+        return bool(item and item.get(_NOTIFIED_ATTR))
+    key = {"PK": f"PLAYER#{notification.player_id}", "SK": f"GAME#{notification.game_id}"}
+    item = table.get_item(Key=key, ProjectionExpression=_NOTIFIED_VERSION_ATTR).get("Item")
+    stored = item.get(_NOTIFIED_VERSION_ATTR) if item else None
+    version = notification.version
+    # ``version`` is only ``None`` for "invite" notifications, handled in the branch above.
+    if not isinstance(stored, (int, Decimal)) or version is None:
+        return False
+    return int(stored) >= version
+
+
 def _claim(table: Table, notification: Notification) -> bool:
-    """The at-least-once guard (DESIGN.md §8): a conditional write that succeeds exactly once per
-    transition. Comes first, before any recipient lookup, so a redelivered record is rejected as
-    cheaply as possible and `notified`/`notified_version` means "this transition was processed" -
-    not "an email was actually sent"."""
+    """Records that this transition has been fully handled - either the email was sent, or
+    :func:`send_notifications` determined there was nothing to send (no such player, no routable
+    channel). A conditional write so a concurrent duplicate attempt (two overlapping batch retries
+    racing the same record) marks it at most once. For the send path specifically, called only
+    after the send has already succeeded, not before (ROADMAP.md 5.0): claiming first made a send
+    failure invisible to any retry, since the claim's own condition would then reject the
+    redelivery that was supposed to try again. A lost race here is harmless - it just means a
+    concurrent attempt already recorded the same claim."""
     if notification.kind == "invite":
         key = {"PK": f"PLAYER#{notification.player_id}", "SK": f"INVITE#{notification.game_id}"}
         expression = f"SET {_NOTIFIED_ATTR} = :true"
@@ -189,19 +214,33 @@ def send_notifications(
     """The I/O half, injectable the same way pump.poll()'s ``handler``/``sleep`` are: a test
     supplies a moto table and a recording sender rather than a real stream and a real inbox."""
     for notification in notifications_for(records):
-        if not _claim(table, notification):
+        if _is_claimed(table, notification):
             continue
         try:
             player = get_player(table, notification.player_id)
         except KeyError:
-            continue  # the player no longer exists; not an error
+            # The player no longer exists; not an error, and nothing about that changes on a
+            # retry, so claim immediately rather than re-reading it every redelivery.
+            _claim(table, notification)
+            continue
         to = _recipient_email(player)
         if to is None:
+            # No routable channel - same reasoning as the missing-player case above: this cannot
+            # be fixed by retrying this record, so it's claimed now rather than left to redo this
+            # lookup on every batch retry.
+            _claim(table, notification)
             continue
         subject, body = _render(table, notification, player.username)
         # A real send failure should propagate - visible to Lambda's batch retry or a crashed
-        # local pump - unlike the data gaps above, which degrade gracefully instead.
+        # local pump - unlike the data gaps above, which degrade gracefully instead. Nothing is
+        # claimed yet at this point, so that retry will actually re-attempt the send rather than
+        # being rejected by an already-set claim.
         sender.send(to, subject, body)
+        # Claimed only now, after the send succeeded, so a crash or exception above leaves the
+        # transition unclaimed and retryable. The cost is a possible duplicate email if the
+        # process dies between the send and this write - accepted in exchange for a failed send
+        # no longer being silently lost (ROADMAP.md 5.0).
+        _claim(table, notification)
 
 
 @lru_cache(maxsize=1)

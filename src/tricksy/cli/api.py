@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Final, Protocol
 
 if TYPE_CHECKING:
     import httpx2
@@ -99,13 +99,19 @@ def _decode_error(response: TransportResponse) -> ApiError:
     return ApiError(response.status_code, code, message)
 
 
+#: Deliberately generous rather than a library default (ROADMAP.md 5.0): a cold Lambda start
+#: plus the ~16 MiB scrypt hash on sign-in can plausibly brush a short default, and a dogfood game
+#: should not spend its time debugging a transport setting.
+_DEFAULT_TIMEOUT: Final = 30.0
+
+
 class HttpTransport:
     """The real ``Transport``, used by every command outside of tests (DESIGN.md §7.3)."""
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, *, timeout: float = _DEFAULT_TIMEOUT) -> None:
         import httpx2
 
-        self._client = httpx2.Client(base_url=base_url)
+        self._client = httpx2.Client(base_url=base_url, timeout=timeout)
 
     def request(
         self,

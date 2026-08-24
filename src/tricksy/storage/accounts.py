@@ -63,6 +63,8 @@ from .errors import (
     InvalidVerificationToken,
     PlayerNotFound,
     StorageError,
+    TooManyContacts,
+    TooManyDevices,
     UsernameTaken,
 )
 
@@ -76,6 +78,13 @@ _SCRYPT_DKLEN: Final = 32
 _SALT_BYTES: Final = 16
 _TOKEN_BYTES: Final = 32
 _PLAYER_ID_BYTES: Final = 12
+#: Per-player caps (ROADMAP.md 5.0): a small, deliberately generous ceiling on two lists that
+#: were otherwise unbounded - a duplicate-address check bounds distinct contacts but not count,
+#: and nothing expires a device token. Revisit upward if either proves too tight in practice.
+#: ``MAX_CONTACTS`` is public because ``api.schemas.RegisterRequest`` imports it, to bound the
+#: registration body at the same number rather than restating it as a second literal.
+MAX_CONTACTS: Final = 10
+_MAX_DEVICES: Final = 32
 #: How long a mailed verification token stays redeemable (ROADMAP.md 4.2).
 _VERIFICATION_TTL: Final = timedelta(hours=24)
 #: How long a mailed password-reset token stays redeemable (ROADMAP.md 4.3). Shorter than
@@ -362,7 +371,13 @@ def issue_token(
     ``expires_at`` is written as ``None``. Tokens do not expire and are revoked explicitly
     (DESIGN.md §6.1), but the attribute is present from the start so introducing expiry later is
     a behaviour change rather than a data migration.
+
+    Raises :class:`~tricksy.storage.errors.TooManyDevices` if the player already has
+    ``_MAX_DEVICES`` tokens outstanding (ROADMAP.md 5.0) - with no expiry, nothing else bounds how
+    many a sign-in loop could mint.
     """
+    if len(list_tokens(table, player_id)) >= _MAX_DEVICES:
+        raise TooManyDevices(_MAX_DEVICES)
     token = secrets.token_urlsafe(_TOKEN_BYTES)
     digest = hash_token(token)
     timestamp = now().isoformat()
@@ -509,12 +524,15 @@ def add_contact(table: Table, player_id: PlayerId, kind: str, address: str) -> P
 
     Raises :class:`~tricksy.storage.errors.ContactAlreadyExists` if this address is already
     registered - every other contact operation names a channel by its address, so duplicates
-    would make "the" channel ambiguous.
+    would make "the" channel ambiguous. Raises :class:`~tricksy.storage.errors.TooManyContacts`
+    if the player already holds ``MAX_CONTACTS`` channels (ROADMAP.md 5.0).
     """
     item = _get_profile_item(table, player_id)
     contacts = _decode_contacts(item.get("contacts"))
     if any(c.address == address for c in contacts):
         raise ContactAlreadyExists(address)
+    if len(contacts) >= MAX_CONTACTS:
+        raise TooManyContacts(MAX_CONTACTS)
     new_contacts = (*contacts, ContactChannel(kind=kind, address=address))
     _write_contacts(table, player_id, new_contacts)
     return _player_from_item({**item, "contacts": _encode_contacts(new_contacts)})
@@ -586,17 +604,19 @@ def _redeem_single_use_token(
     *,
     now: Callable[[], datetime],
 ) -> dict[str, Any]:
-    """Deletes and returns the item a matching :func:`_mint_single_use_token` call stored,
-    whether or not it turns out to have expired - so it can never be replayed (DESIGN.md §6.1:
-    "mails a single-use token"). Raises ``invalid`` if the token was never issued, has already
-    been redeemed, or has expired. Shared by :func:`complete_verification` and
-    :func:`complete_password_reset`, which differ only in ``pk_for``, the exception raised, and
-    what they do with the fields on the returned item."""
+    """Atomically deletes and returns the item a matching :func:`_mint_single_use_token` call
+    stored, whether or not it turns out to have expired - so it can never be replayed (DESIGN.md
+    §6.1: "mails a single-use token"). The delete itself is the claim: two concurrent redemptions
+    of the same token race on one ``DeleteItem``, and only the one that actually removes the item
+    gets ``Attributes`` back. Raises ``invalid`` if the token was never issued, has already been
+    redeemed (including by a concurrent caller that won the race), or has expired. Shared by
+    :func:`complete_verification` and :func:`complete_password_reset`, which differ only in
+    ``pk_for``, the exception raised, and what they do with the fields on the returned item."""
     key = {"PK": pk_for(hash_token(token)), "SK": "TOKEN"}
-    item = table.get_item(Key=key).get("Item")
-    if item is None:
+    response = table.delete_item(Key=key, ReturnValues="ALL_OLD")
+    item = response.get("Attributes")
+    if not item:
         raise invalid
-    table.delete_item(Key=key)
     if as_text(item["expires_at"]) < now().isoformat():
         raise invalid
     return dict(item)

@@ -42,6 +42,8 @@ from tricksy.storage.errors import (
     PlayerNotFound,
     RuleSetNotFound,
     SeatTaken,
+    TooManyContacts,
+    TooManyDevices,
     UsernameTaken,
     VersionConflict,
 )
@@ -114,6 +116,8 @@ _MAPPING: Final[tuple[tuple[type[Exception], int, str], ...]] = (
     (GameAlreadyExists, status.HTTP_409_CONFLICT, "GAME_ALREADY_EXISTS"),
     (UsernameTaken, status.HTTP_409_CONFLICT, "USERNAME_TAKEN"),
     (ContactAlreadyExists, status.HTTP_409_CONFLICT, "CONTACT_ALREADY_EXISTS"),
+    (TooManyContacts, status.HTTP_409_CONFLICT, "TOO_MANY_CONTACTS"),
+    (TooManyDevices, status.HTTP_409_CONFLICT, "TOO_MANY_DEVICES"),
     # 400 - well-formed, but the rules say no
     (UnknownContract, status.HTTP_400_BAD_REQUEST, "UNKNOWN_CONTRACT"),
     (IllegalMove, status.HTTP_400_BAD_REQUEST, "ILLEGAL_MOVE"),

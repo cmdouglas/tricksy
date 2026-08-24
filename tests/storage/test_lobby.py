@@ -234,6 +234,27 @@ def test_list_games_for_player_is_empty_for_a_stranger(table: Table) -> None:
     assert list_games_for_player(table, "nobody") == ()
 
 
+def test_list_games_for_player_skips_a_row_with_no_game_id(table: Table) -> None:
+    """Defense in depth (ROADMAP.md 5.0): before the seat claim and the ``PLAYER#`` put became
+    one transaction, a crash between them could leave a partial row - later ``UpdateItem`` calls
+    from ``start_game``/``append`` would resurrect it with no ``game_id``. Simulate that shape
+    directly rather than the crash itself, since the write path can no longer produce it."""
+    _open_lobby(table)
+    table.put_item(
+        Item={
+            "PK": "PLAYER#north",
+            "SK": "GAME#partial",
+            "kind": "texas42",
+            "status": "WAITING",
+            "is_my_turn": False,
+        }
+    )
+
+    (summary,) = list_games_for_player(table, "north")
+
+    assert summary.game_id == "g1"
+
+
 def test_a_finished_game_is_marked_complete(table: Table) -> None:
     """``append`` retires the game from every listing in the transaction that ends it, so a
     finished game can never show up as still waiting on somebody."""

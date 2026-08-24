@@ -37,7 +37,7 @@ from tricksy.games.texas42.moves import (
 )
 from tricksy.games.texas42.state import PlayerId, Seat
 from tricksy.games.texas42.suits import Suit
-from tricksy.storage.accounts import ContactChannel, Player
+from tricksy.storage.accounts import MAX_CONTACTS, ContactChannel, Player
 from tricksy.storage.lobby import GameSummary, Lobby
 from tricksy.storage.rule_sets import RuleSet
 
@@ -69,7 +69,7 @@ class ContactChannelModel(_Strict):
 class RegisterRequest(_Strict):
     username: _Username
     password: _Password
-    contacts: list[ContactChannelModel] = Field(default_factory=list)
+    contacts: list[ContactChannelModel] = Field(default_factory=list, max_length=MAX_CONTACTS)
     device_label: str = Field(default="", max_length=64)
 
 

@@ -8,6 +8,7 @@ import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
 from tricksy.storage.accounts import (
+    MAX_CONTACTS,
     ContactChannel,
     add_contact,
     authenticate,
@@ -32,6 +33,8 @@ from tricksy.storage.errors import (
     InvalidResetToken,
     InvalidToken,
     InvalidVerificationToken,
+    TooManyContacts,
+    TooManyDevices,
     UsernameTaken,
 )
 
@@ -176,6 +179,23 @@ def test_revoking_twice_is_a_no_op(table: Table) -> None:
     assert list_tokens(table, player.player_id) == ()
 
 
+def test_issue_token_rejects_past_the_device_cap(table: Table) -> None:
+    """ROADMAP.md 5.0: nothing expires a bearer token, so an unbounded mint loop could otherwise
+    grow a player's ``PLAYER#`` partition without limit. Doesn't assert the exact cap value - just
+    that one exists and stops the count from growing further."""
+    player = create_player(table, "charlie", "pw")
+    with pytest.raises(TooManyDevices):
+        for i in range(100):
+            issue_token(table, player.player_id, f"device-{i}")
+
+    minted = len(list_tokens(table, player.player_id))
+    assert 0 < minted < 100
+
+    with pytest.raises(TooManyDevices):
+        issue_token(table, player.player_id, "one-too-many")
+    assert len(list_tokens(table, player.player_id)) == minted
+
+
 # --------------------------------------------------------------------- contact channels (4.2)
 
 
@@ -214,6 +234,17 @@ def test_add_contact_rejects_a_duplicate_address(table: Table) -> None:
 
     with pytest.raises(ContactAlreadyExists):
         add_contact(table, player.player_id, "email", "c@example.com")
+
+
+def test_add_contact_rejects_past_the_contact_cap(table: Table) -> None:
+    player = create_player(table, "charlie", "pw")
+    for i in range(MAX_CONTACTS):
+        add_contact(table, player.player_id, "email", f"c{i}@example.com")
+
+    with pytest.raises(TooManyContacts):
+        add_contact(table, player.player_id, "email", "one-too-many@example.com")
+
+    assert len(get_player(table, player.player_id).contacts) == MAX_CONTACTS
 
 
 def test_remove_contact_removes_only_the_matching_address(table: Table) -> None:
