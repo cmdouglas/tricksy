@@ -248,9 +248,9 @@ def test_a_failed_send_leaves_the_transition_unclaimed_and_retryable(table: Tabl
         send_notifications(table, sender, [record])
     assert sender.sent == []
     assert (
-        table.get_item(Key={"PK": f"PLAYER#{player_id}", "SK": "GAME#g1"}).get("Item", {}).get(
-            "notified_version"
-        )
+        table.get_item(Key={"PK": f"PLAYER#{player_id}", "SK": "GAME#g1"})
+        .get("Item", {})
+        .get("notified_version")
         is None
     )
 
