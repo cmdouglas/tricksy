@@ -154,6 +154,26 @@ class ContactAlreadyExists(StorageError):
         self.address = address
 
 
+class TooManyContacts(StorageError):
+    """``add_contact`` would push a player's channel count past the cap (ROADMAP.md 5.0) - an
+    unbounded ``contacts`` list on ``PROFILE`` can otherwise grow toward DynamoDB's 400KB item
+    limit."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"a player may have at most {limit} contact channels")
+        self.limit = limit
+
+
+class TooManyDevices(StorageError):
+    """``issue_token`` would push a player's signed-in device count past the cap (ROADMAP.md
+    5.0) - nothing expires a bearer token, so an unbounded mint loop can otherwise grow the
+    ``PLAYER#`` partition without limit."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"a player may have at most {limit} signed-in devices")
+        self.limit = limit
+
+
 class InvalidVerificationToken(StorageError):
     """The verification token was never issued, has already been redeemed, or has expired
     (ROADMAP.md 4.2). The token is itself the credential (DESIGN.md §6.1), so this carries no

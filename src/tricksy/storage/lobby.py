@@ -40,7 +40,7 @@ from tricksy.games.texas42.contracts import validate_house_rules
 from tricksy.games.texas42.house_rules import HouseRules
 from tricksy.games.texas42.state import GameId, GameState, PlayerId, Seat
 
-from ._dynamo import as_text, from_dynamo
+from ._dynamo import as_text, from_dynamo, is_transaction_cancelled, transact_write
 from .codec import decode_house_rules, encode_house_rules
 from .errors import (
     AlreadySeated,
@@ -218,13 +218,24 @@ def create_pending_game(
         item["GSI1SK"] = timestamp
 
     try:
-        table.put_item(Item=item, ConditionExpression="attribute_not_exists(PK)")
+        transact_write(
+            table,
+            [
+                {
+                    "Put": {
+                        "TableName": table.name,
+                        "Item": item,
+                        "ConditionExpression": "attribute_not_exists(PK)",
+                    }
+                },
+                _player_game_put(table, game_id, creator, seat, GameStatus.WAITING),
+            ],
+        )
     except ClientError as exc:
-        if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+        if is_transaction_cancelled(exc):
             raise GameAlreadyExists(game_id) from exc
         raise
 
-    _put_player_game_item(table, game_id, creator, seat, GameStatus.WAITING)
     return Lobby(
         game_id=game_id,
         kind=GAME_KIND,
@@ -238,20 +249,28 @@ def create_pending_game(
     )
 
 
-def _put_player_game_item(
+def _player_game_put(
     table: Table, game_id: GameId, player_id: PlayerId, seat: int, status: GameStatus
-) -> None:
-    table.put_item(
-        Item={
-            "PK": _player_pk(player_id),
-            "SK": _game_sk(game_id),
-            "game_id": game_id,
-            "kind": GAME_KIND,
-            "seat": seat,
-            "status": status.value,
-            "is_my_turn": False,
+) -> dict[str, Any]:
+    """A ``TransactWriteItems`` ``Put`` for the ``PLAYER#/GAME#`` item, carrying no condition of
+    its own - the key is fresh in both callers, so the only way the transaction it rides in can
+    cancel is the other item's condition failing (ROADMAP.md 5.0: this and the ``META`` write used
+    to be two separate, non-transactional calls, which could leave a held seat with no matching
+    row on a crash between them)."""
+    return {
+        "Put": {
+            "TableName": table.name,
+            "Item": {
+                "PK": _player_pk(player_id),
+                "SK": _game_sk(game_id),
+                "game_id": game_id,
+                "kind": GAME_KIND,
+                "seat": seat,
+                "status": status.value,
+                "is_my_turn": False,
+            },
         }
-    )
+    }
 
 
 def get_lobby(table: Table, game_id: GameId) -> Lobby:
@@ -347,27 +366,39 @@ def join_seat(
         raise NotInvited(game_id)
 
     try:
-        table.update_item(
-            Key={"PK": _game_pk(game_id), "SK": "META"},
-            UpdateExpression="SET seats.#seat = :assignment, last_activity_at = :ts",
-            ConditionExpression=("#status = :waiting AND attribute_not_exists(seats.#seat)"),
-            ExpressionAttributeNames={"#seat": str(seat), "#status": "status"},
-            ExpressionAttributeValues={
-                ":assignment": {"player_id": player_id, "username": username},
-                ":waiting": GameStatus.WAITING.value,
-                ":ts": now().isoformat(),
-            },
+        transact_write(
+            table,
+            [
+                {
+                    "Update": {
+                        "TableName": table.name,
+                        "Key": {"PK": _game_pk(game_id), "SK": "META"},
+                        "UpdateExpression": "SET seats.#seat = :assignment, last_activity_at = :ts",
+                        "ConditionExpression": (
+                            "#status = :waiting AND attribute_not_exists(seats.#seat)"
+                        ),
+                        "ExpressionAttributeNames": {"#seat": str(seat), "#status": "status"},
+                        "ExpressionAttributeValues": {
+                            ":assignment": {"player_id": player_id, "username": username},
+                            ":waiting": GameStatus.WAITING.value,
+                            ":ts": now().isoformat(),
+                        },
+                    }
+                },
+                _player_game_put(table, game_id, player_id, seat, GameStatus.WAITING),
+            ],
         )
     except ClientError as exc:
-        if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
+        if not is_transaction_cancelled(exc):
             raise
-        # Lost a race since the read above. Re-read to say which way we lost.
+        # Lost a race since the read above. The ``PLAYER#`` put carries no condition of its own,
+        # so a cancellation can only mean the seat claim's condition failed. Re-read to say which
+        # way we lost.
         current = get_lobby(table, game_id)
         if current.status is not GameStatus.WAITING:
             raise GameNotJoinable(game_id, current.status.value) from exc
         raise SeatTaken(game_id, seat) from exc
 
-    _put_player_game_item(table, game_id, player_id, seat, GameStatus.WAITING)
     # A no-op for a public game, which never had one. Unconditional rather than gated on
     # ``visibility`` so a stray invite to a public table (nothing forbids one) is cleaned up too.
     revoke_invite(table, game_id, player_id)
@@ -401,6 +432,11 @@ def list_games_for_player(table: Table, player_id: PlayerId) -> tuple[GameSummar
     One query against the ``PLAYER#`` partition, reading fields denormalized onto those items by
     ``join_seat`` and ``append`` - no per-game reads, so the cost does not grow with how many
     games somebody has going.
+
+    Skips any row with no ``game_id``: defense in depth against a partial item left by a crash
+    between the seat claim and the ``PLAYER#`` write, from before that pair became one transaction
+    (ROADMAP.md 5.0). ``start_game``/``append`` both ``UpdateItem`` this same key and would
+    otherwise resurrect such a row with only ``is_my_turn``/``status``/``version`` on it.
     """
     response = table.query(
         KeyConditionExpression="PK = :pk AND begins_with(SK, :prefix)",
@@ -415,5 +451,6 @@ def list_games_for_player(table: Table, player_id: PlayerId) -> tuple[GameSummar
             is_my_turn=bool(item["is_my_turn"]),
         )
         for item in response.get("Items", ())
+        if "game_id" in item
     ]
     return tuple(sorted(summaries, key=lambda s: s.game_id))

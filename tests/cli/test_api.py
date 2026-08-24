@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from tricksy.cli.api import ApiClient, ApiError
+from tricksy.cli.api import ApiClient, ApiError, HttpTransport
 
 
 @dataclass(slots=True)
@@ -131,3 +131,17 @@ def test_error_with_no_body_raises_api_error_with_unknown_code() -> None:
         client.request("GET", "/players/me")
 
     assert exc_info.value.code == "UNKNOWN"
+
+
+def test_http_transport_has_an_explicit_default_timeout() -> None:
+    """ROADMAP.md 5.0: relying on the underlying HTTP client's own default risked a cold Lambda
+    start plus a ~16 MiB scrypt hash brushing a short timeout during the dogfood game."""
+    transport = HttpTransport("https://example.invalid")
+
+    assert transport._client.timeout.connect == 30.0
+
+
+def test_http_transport_timeout_is_configurable() -> None:
+    transport = HttpTransport("https://example.invalid", timeout=5.0)
+
+    assert transport._client.timeout.connect == 5.0

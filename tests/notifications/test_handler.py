@@ -231,6 +231,36 @@ def test_your_turn_sends_email_and_stamps_notified_version(table: Table) -> None
     assert item["notified_version"] == 4
 
 
+def test_a_failed_send_leaves_the_transition_unclaimed_and_retryable(table: Table) -> None:
+    """ROADMAP.md 5.0: claiming happened before the send used to mean a send failure was silently
+    lost - a batch retry would redeliver the record but find it already claimed. Now the claim
+    only happens after a successful send, so a retry of the same record actually retries it."""
+    player_id = _player_with_contact(table, "alice")
+    record = _game_record(
+        player_id,
+        "g1",
+        old={"is_my_turn": False, "status": "ACTIVE", "version": 3},
+        new={"is_my_turn": True, "status": "ACTIVE", "version": 4},
+    )
+    sender = FakeSender(fail_next=RuntimeError("SES is down"))
+
+    with pytest.raises(RuntimeError):
+        send_notifications(table, sender, [record])
+    assert sender.sent == []
+    assert (
+        table.get_item(Key={"PK": f"PLAYER#{player_id}", "SK": "GAME#g1"}).get("Item", {}).get(
+            "notified_version"
+        )
+        is None
+    )
+
+    send_notifications(table, sender, [record])  # batch retry redelivers the same record
+
+    assert len(sender.sent) == 1
+    item = table.get_item(Key={"PK": f"PLAYER#{player_id}", "SK": "GAME#g1"})["Item"]
+    assert item["notified_version"] == 4
+
+
 def test_duplicate_record_sends_nothing_second_time(table: Table) -> None:
     player_id = _player_with_contact(table, "alice")
     record = _game_record(

@@ -20,6 +20,13 @@ class SentEmail:
 @dataclass(slots=True)
 class FakeSender:
     sent: list[SentEmail] = field(default_factory=list)
+    #: When set, ``send`` raises this instead of recording, once. Exists to exercise the
+    #: send-failure retry path (ROADMAP.md 5.0): a notification must stay unclaimed until a send
+    #: actually succeeds.
+    fail_next: Exception | None = None
 
     def send(self, to: str, subject: str, body: str) -> None:
+        if self.fail_next is not None:
+            exc, self.fail_next = self.fail_next, None
+            raise exc
         self.sent.append(SentEmail(to, subject, body))

@@ -838,20 +838,22 @@ Four decisions govern everything below.
   `tests/cli/test_layering.py` already made: a property that would otherwise be an argument in a
   docstring becomes a fact a test can fail on.
 
-### 5.0 Pre-deployment hardening
+### 5.0 Pre-deployment hardening — done
 
 Five findings from a pre-deployment audit of the codebase, done here rather than after 5.7 because
 every one of them is cheaper while no real data exists: three are correctness holes whose fix is a
 small code change today and a data-repair exercise once real accounts and games are in the table,
 and the other two are decisions that 5.3/5.4 would otherwise bake machinery around. None of them
-block local play, which is why no earlier phase caught them as an exit criterion.
+block local play, which is why no earlier phase caught them as an exit criterion. All five are
+fixed.
 
 - **Make single-use token redemption atomic** (`accounts._redeem_single_use_token`). Today it is a
   `get_item` followed by a separate unconditional `delete_item`, so two concurrent redemptions of
   the same `VERIFY#`/`RESET#` token can both read the item before either deletes it and both
   succeed - contradicting the docstring's "can never be replayed". Replace the pair with a single
   `delete_item(Key=key, ReturnValues="ALL_OLD")` and treat an empty `Attributes` as invalid: the
-  delete becomes the atomic claim, and the function gets smaller rather than larger.
+  delete becomes the atomic claim, and the function gets smaller rather than larger. **Done**: the
+  pair is now that single call.
 - **Close the seat-claim/`PLAYER#` write gap** (`lobby.join_seat`, `lobby.create_pending_game`).
   The seat claim on `META` and the `PLAYER#/GAME#` put are two non-transactional writes. A crash
   between them leaves a held seat with no row - and it never heals, because `start_game` and
@@ -861,6 +863,7 @@ block local play, which is why no earlier phase caught them as an exit criterion
   one `transact_write` (unlike the invite check, whose read-then-write trade `join_seat`'s
   docstring defends, the put carries no condition of its own, so nothing about failure attribution
   is lost), and make `list_games_for_player` skip rows missing `game_id` as defense in depth.
+  **Done**: both sites are one transaction each, and the read guards the missing-`game_id` case.
 - **Settle the notifier's send-failure semantics before 5.4 builds around them**
   (`handler.send_notifications`). `_claim` marks a transition processed *before* the send, so on a
   batch retry the claim returns false and the email is skipped - lost, not resent - and the same
@@ -869,16 +872,22 @@ block local play, which is why no earlier phase caught them as an exit criterion
   overpromises, and 5.4's retry/bisect/DLQ design currently assumes redelivery helps a failure
   mode this ordering makes unretryable. Either keep at-most-once and correct the comment plus
   5.4's rationale, or claim after a successful send and accept the occasional duplicate email.
+  **Done**: claims now happen after a successful send (or after determining there is nothing to
+  send), so 5.4's retry/DLQ design can assume redelivery actually retries a failed send, at the
+  cost of a possible duplicate email on a crash between send and claim.
 - **Cap the unbounded per-player lists** (`accounts.add_contact`, `RegisterRequest.contacts`,
   `issue_token`). Contacts have no cap at either layer, so an authenticated loop can grow the
   `PROFILE` item toward DynamoDB's 400KB item limit; devices likewise - every sign-in mints a
   token pair, nothing expires them, and `complete_password_reset` loops over all of them. A small
   cap (order of ten contacts, a few dozen devices) is two validations today and an awkward
-  migration conversation after real accounts exceed it.
+  migration conversation after real accounts exceed it. **Done**: `MAX_CONTACTS = 10` (shared by
+  `accounts.add_contact` and `RegisterRequest.contacts`) and a 32-device cap on `issue_token`, both
+  a 409 (`TOO_MANY_CONTACTS`/`TOO_MANY_DEVICES`).
 - **Give `HttpTransport` an explicit timeout** (`cli/api.py`). It currently rides on httpx2's
   default. The first request to a cold Lambda - cold start plus a ~16 MiB scrypt on sign-in - can
   plausibly brush a short default, and 5.7's dogfood game should not spend its time debugging a
-  transport setting. Choose one deliberately and write it down.
+  transport setting. Choose one deliberately and write it down. **Done**: `timeout: float = 30.0`
+  on `HttpTransport.__init__`.
 
 ### 5.1 The CDK app and the table
 
