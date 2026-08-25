@@ -17,6 +17,10 @@ tricksy = "tricksy.cli.main:main"
 cli = [
     "httpx2>=2.10.0",
 ]
+infra = [
+    "aws-cdk-lib>=2.265.0,<3.0.0",
+    "constructs>=10.5.0,<11.0.0",
+]
 dev = [
     "pytest>=8.3",
     "hypothesis>=6.112",
@@ -28,6 +32,8 @@ dev = [
     "httpx>=0.28.1",
     "httpx2>=2.10.0",
     "uvicorn>=0.52.3",
+    "aws-cdk-lib>=2.265.0,<3.0.0",
+    "constructs>=10.5.0,<11.0.0",
 ]
 
 [build-system]
@@ -40,6 +46,7 @@ packages = ["src/tricksy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --strict-config -m \"not integration\""
+pythonpath = ["infra"]
 markers = [
     "integration: needs a real DynamoDB Local via Docker (ROADMAP.md 1.6); run with `-m integration`",
 ]
@@ -47,7 +54,7 @@ markers = [
 [tool.ruff]
 target-version = "py313"
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "infra"]
 
 [tool.ruff.lint]
 select = [
@@ -61,6 +68,6 @@ select = [
 
 [tool.mypy]
 python_version = "3.13"
-files = ["src", "tests"]
+files = ["src", "tests", "infra"]
 strict = true
 warn_unreachable = true
