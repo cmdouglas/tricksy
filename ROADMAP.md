@@ -889,7 +889,7 @@ fixed.
   transport setting. Choose one deliberately and write it down. **Done**: `timeout: float = 30.0`
   on `HttpTransport.__init__`.
 
-### 5.1 The CDK app and the table
+### 5.1 The CDK app and the table — done
 
 `infra/`: a `app.py` entry point, the stack module, and `cdk.json`. Dependencies go in an `infra`
 optional extra (`aws-cdk-lib`, `constructs`), kept out of the Lambda bundle the same way the `cli`
@@ -899,12 +899,20 @@ alternative is one directory in the repository nothing checks.
 - The table repeats `schema.py`'s key schema, `OpenGames` GSI, `PAY_PER_REQUEST` billing and
   `NEW_AND_OLD_IMAGES` stream, and adds the three things a fixture has no use for and a real table
   must not be without: `RemovalPolicy.RETAIN`, point-in-time recovery, and deletion protection.
-  A `cdk destroy` that takes the games with it is not a recoverable mistake.
+  A `cdk destroy` that takes the games with it is not a recoverable mistake. **Done**: `infra/stack.py`
+  defines `TricksyStack` with `self.table` exposed for 5.3/5.4 to extend, using the L2 `Table`
+  construct (not `CfnTable`) so `grant_read_write_data` is available later. Point-in-time recovery
+  uses `point_in_time_recovery_specification`, not the deprecated `point_in_time_recovery` bool.
 - `tests/infra/test_table_parity.py` synthesizes the stack, pulls the `AWS::DynamoDB::Table`
   resource out of the template, and compares its key schema, attribute definitions, secondary
   indexes and stream view type against `describe_table` of a moto table built by
   `schema.create_table`. Both sides are CloudFormation-shaped, so this is a direct comparison and
   not a translation layer. It is the whole answer to the duplication the preamble accepted.
+  **Done**: six tests - key schema, attribute definitions, GSI, and stream view type compared
+  directly; billing mode and the RETAIN/PITR/deletion-protection trio, which have no fixture-side
+  counterpart, asserted against the template alone rather than forced into a false comparison.
+  `aws-cdk-lib`/`constructs` are dual-listed into `dev` (the existing `cli`/`httpx2` precedent) so
+  CI's `uv sync --extra dev` needs no edit.
 
 ### 5.2 TTL for the single-use tokens
 
