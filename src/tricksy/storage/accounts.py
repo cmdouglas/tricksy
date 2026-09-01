@@ -14,11 +14,11 @@ table are needed:
     The same fact stored the other way round, so a player can list and revoke their own devices
     without a scan. Both are written in one transaction and deleted in one transaction.
 ``VERIFY#<sha256(token)> / TOKEN``
-    A pending contact-channel verification: player id, address, expires_at. Unlike a bearer
+    A pending contact-channel verification: player id, address, expires_at, ttl. Unlike a bearer
     token, nothing needs to list a player's pending verifications, so there is no reverse index -
     one item, minted by :func:`begin_verification` and consumed by :func:`complete_verification`.
 ``RESET#<sha256(token)> / TOKEN``
-    A pending password reset: player id, expires_at (DESIGN.md §4.1). Unlike ``VERIFY#`` it
+    A pending password reset: player id, expires_at, ttl (DESIGN.md §4.1). Unlike ``VERIFY#`` it
     carries no ``address`` - it is tied to the player, not a channel - and minting it (
     :func:`begin_password_reset`) is not itself proof of anything; redeeming it
     (:func:`complete_password_reset`) is what grants a new password and revokes every device.
@@ -34,7 +34,10 @@ handed to the caller and never recovered; the table only ever holds its hash. Sa
 
 Numeric attributes are avoided throughout (scrypt's parameters are encoded inside the password
 string, timestamps are ISO-8601 text), so unlike the game items these need no ``Decimal``
-normalization on read.
+normalization on read - with one exception: ``VERIFY#``/``RESET#`` items also carry a numeric
+``ttl`` (epoch seconds) beside their ISO-8601 ``expires_at``, because DynamoDB's TTL reaper only
+reads a Number attribute (ROADMAP.md 5.2). Nothing here reads ``ttl`` back - ``expires_at`` stays
+the sole authority for the expiry check - so it needs no normalization either.
 """
 
 from __future__ import annotations
@@ -569,8 +572,10 @@ def _mint_single_use_token(
     now: Callable[[], datetime],
 ) -> str:
     """Mints a single-use, expiring token under the partition key ``pk_for`` builds from its
-    hash, storing ``fields`` alongside ``expires_at``. Returns the plaintext - the only time it
-    exists outside the caller. Shared by :func:`begin_verification` and
+    hash, storing ``fields`` alongside ``expires_at`` and its numeric mirror ``ttl`` (epoch
+    seconds, for DynamoDB's TTL reaper - ROADMAP.md 5.2; ``expires_at`` remains the authority the
+    correctness check in :func:`_redeem_single_use_token` actually reads). Returns the plaintext -
+    the only time it exists outside the caller. Shared by :func:`begin_verification` and
     :func:`begin_password_reset`, which differ only in ``pk_for``, ``ttl`` and which fields ride
     along on the item.
 
@@ -585,11 +590,13 @@ def _mint_single_use_token(
     while token.startswith("-"):
         token = secrets.token_urlsafe(_TOKEN_BYTES)
     digest = hash_token(token)
+    expires_at = now() + ttl
     table.put_item(
         Item={
             "PK": pk_for(digest),
             "SK": "TOKEN",
-            "expires_at": (now() + ttl).isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "ttl": int(expires_at.timestamp()),
             **fields,
         }
     )

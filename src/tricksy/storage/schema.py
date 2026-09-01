@@ -38,9 +38,10 @@ ENDPOINT_URL_ENV = "TRICKSY_DYNAMODB_ENDPOINT"
 def create_table(dynamodb: DynamoDBServiceResource, name: str) -> Table:
     """Creates the ``Tricksy`` table shape under ``name`` and returns a handle to it.
 
-    Does not wait for the table to become ACTIVE - the moto ``table`` fixture doesn't need to
-    (moto is synchronous), so that stays the caller's job, as it already is for ``real_table`` in
-    ``tests/conftest.py``.
+    Waits for the table to become ACTIVE before returning. Earlier this stayed the caller's job,
+    but enabling TTL (below) is a separate call that DynamoDB rejects against a table that is
+    still CREATING, so this can no longer hand control back before the table is usable. Costs
+    nothing extra against moto, whose tables report ACTIVE immediately.
     """
     dynamodb.create_table(
         TableName=name,
@@ -67,13 +68,21 @@ def create_table(dynamodb: DynamoDBServiceResource, name: str) -> Table:
         BillingMode="PAY_PER_REQUEST",
         StreamSpecification={"StreamEnabled": True, "StreamViewType": "NEW_AND_OLD_IMAGES"},
     )
-    return dynamodb.Table(name)
+    table = dynamodb.Table(name)
+    table.wait_until_exists()
+    # TTL isn't a create_table parameter - it's a separate call, keyed on the attribute that
+    # holds each item's numeric expiry (ROADMAP.md 5.2; accounts.py's VERIFY#/RESET# items are the
+    # only ones that write it today).
+    table.meta.client.update_time_to_live(
+        TableName=name,
+        TimeToLiveSpecification={"Enabled": True, "AttributeName": "ttl"},
+    )
+    return table
 
 
 def main() -> int:
     """Creates the table against ``TRICKSY_DYNAMODB_ENDPOINT`` (DynamoDB Local, typically) under
-    ``TRICKSY_TABLE_NAME``, and waits for it to exist before returning - unlike :func:`create_table`
-    itself, a one-shot CLI invocation should not hand back control before the table is usable.
+    ``TRICKSY_TABLE_NAME``.
 
     No default table name, matching ``tricksy.api.deps.get_table``: silently defaulting to a name is
     how a local run ends up pointed at production.
@@ -84,8 +93,7 @@ def main() -> int:
         return 1
     endpoint_url = os.environ.get(ENDPOINT_URL_ENV) or None
     dynamodb = boto3.resource("dynamodb", endpoint_url=endpoint_url)
-    table = create_table(dynamodb, name)
-    table.wait_until_exists()
+    create_table(dynamodb, name)
     print(f"created {name!r}")
     return 0
 

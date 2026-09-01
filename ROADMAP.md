@@ -914,7 +914,7 @@ alternative is one directory in the repository nothing checks.
   `aws-cdk-lib`/`constructs` are dual-listed into `dev` (the existing `cli`/`httpx2` precedent) so
   CI's `uv sync --extra dev` needs no edit.
 
-### 5.2 TTL for the single-use tokens
+### 5.2 TTL for the single-use tokens — done
 
 Not polish, and not really a deployment concern except that this is the phase where the table
 starts accumulating rows nobody deletes. `accounts._mint_single_use_token` writes `expires_at` as
@@ -924,9 +924,19 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
 - Add a numeric `ttl` attribute beside the existing `expires_at`. `expires_at` stays the authority
   for the check in `_redeem_single_use_token`, and this is the point rather than a redundancy: TTL
   deletion is best-effort and can run up to 48 hours late, so it is housekeeping and must never be
-  the thing standing between an expired token and a redemption.
+  the thing standing between an expired token and a redemption. **Done**: `_mint_single_use_token`
+  computes `expires_at` once and writes both it and `int(expires_at.timestamp())` as `ttl`;
+  `_redeem_single_use_token` is untouched and still reads only `expires_at`.
 - Enable `TimeToLiveSpecification` on `ttl` in both `schema.create_table` and the stack, where
-  5.1's parity test covers it.
+  5.1's parity test covers it. **Done**: `schema.create_table` now waits for the table to become
+  ACTIVE before calling `update_time_to_live` - TTL is a separate boto3 call from `create_table`
+  and DynamoDB rejects it against a table still `CREATING`, so `create_table` can no longer hand
+  control back before the table exists the way it used to (costs nothing extra against moto,
+  whose tables report `ACTIVE` immediately; confirmed against real DynamoDB Local too via the
+  integration suite). `infra/stack.py`'s `Table` construct gets `time_to_live_attribute="ttl"`,
+  and `tests/infra/test_table_parity.py` gained `test_ttl_matches_schema_py`, comparing the
+  synthesized `TimeToLiveSpecification` against `describe_time_to_live` rather than
+  `describe_table` - TTL is the one property real DynamoDB reports through a separate call.
 - `TOKEN#` bearer items are untouched. They carry `expires_at: None` deliberately (DESIGN.md §6.1:
   a device credential is revoked, not expired), so there is nothing for a reaper to key on.
 
