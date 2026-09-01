@@ -1,9 +1,11 @@
 """Parity between ``schema.create_table`` and the CDK-synthesized table (ROADMAP.md 5.1).
 
-Only fields whose shape is identical in a CloudFormation template and in ``describe_table``'s
-response are compared directly. Billing mode, RETAIN, point-in-time recovery and deletion
-protection have no shape in common with (or no counterpart in) the fixture side and get
-standalone, template-only assertions instead - see the module docstring in ``infra/stack.py``.
+Only fields whose shape is identical in a CloudFormation template and in a real table's
+description are compared directly - most against ``describe_table``, and TTL (ROADMAP.md 5.2)
+against ``describe_time_to_live``, since real DynamoDB reports it separately. Billing mode,
+RETAIN, point-in-time recovery and deletion protection have no shape in common with (or no
+counterpart in) the fixture side and get standalone, template-only assertions instead - see the
+module docstring in ``infra/stack.py``.
 """
 
 from __future__ import annotations
@@ -81,6 +83,16 @@ def test_stream_view_type_matches_schema_py(
         props["StreamSpecification"]["StreamViewType"]
         == described["StreamSpecification"]["StreamViewType"]
     )
+
+
+def test_ttl_matches_schema_py(table_resource: Mapping[str, Any], table: Table) -> None:
+    ttl = table.meta.client.describe_time_to_live(TableName=table.table_name)[
+        "TimeToLiveDescription"
+    ]
+    assert table_resource["Properties"]["TimeToLiveSpecification"] == {
+        "AttributeName": ttl["AttributeName"],
+        "Enabled": ttl["TimeToLiveStatus"] == "ENABLED",
+    }
 
 
 def test_billing_mode_is_pay_per_request(table_resource: Mapping[str, Any]) -> None:

@@ -1,7 +1,8 @@
 """The one stack (ROADMAP.md 5.1, DESIGN.md §14).
 
 ``self.table`` is exposed so later sub-phases build onto this same stack instead of a second
-one: 5.2 adds a TTL attribute, 5.3/5.4 add Lambda functions and call
+one: 5.2 adds a TTL attribute (``ttl``, matching ``schema.create_table``'s
+``update_time_to_live`` call), 5.3/5.4 add Lambda functions and call
 ``self.table.grant_read_write_data``.
 
 This mirrors ``tricksy.storage.schema.create_table`` by hand rather than importing it, because
@@ -38,6 +39,7 @@ class TricksyStack(Stack):
             sort_key=Attribute(name="SK", type=AttributeType.STRING),
             billing_mode=BillingMode.PAY_PER_REQUEST,
             stream=StreamViewType.NEW_AND_OLD_IMAGES,
+            time_to_live_attribute="ttl",
             point_in_time_recovery_specification=PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True
             ),

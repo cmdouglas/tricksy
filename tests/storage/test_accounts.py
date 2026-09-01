@@ -8,6 +8,8 @@ import pytest
 from mypy_boto3_dynamodb.service_resource import Table
 
 from tricksy.storage.accounts import (
+    _RESET_TTL,
+    _VERIFICATION_TTL,
     MAX_CONTACTS,
     ContactChannel,
     add_contact,
@@ -349,6 +351,18 @@ def test_verifying_a_channel_removed_after_the_token_was_minted_is_a_no_op(table
     assert get_player(table, player.player_id).contacts == ()
 
 
+def test_a_verification_token_carries_a_numeric_ttl_for_dynamos_reaper(table: Table) -> None:
+    """DynamoDB's TTL reaper only reads a Number attribute (ROADMAP.md 5.2) - `expires_at` alone
+    would never get this item cleaned up."""
+    player = create_player(table, "charlie", "pw", [ContactChannel("email", "c@example.com")])
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+
+    token = begin_verification(table, player.player_id, "c@example.com", now=lambda: start)
+
+    stored = table.get_item(Key={"PK": f"VERIFY#{hash_token(token)}", "SK": "TOKEN"})["Item"]
+    assert stored["ttl"] == int((start + _VERIFICATION_TTL).timestamp())
+
+
 # ----------------------------------------------------------------------- password reset (4.3)
 
 
@@ -408,6 +422,16 @@ def test_an_expired_reset_token_is_rejected_and_still_consumed(table: Table) -> 
         complete_password_reset(table, token, "new-password", now=lambda: start)
 
     assert authenticate(table, "charlie", "hunter2") == player.player_id
+
+
+def test_a_reset_token_carries_a_numeric_ttl_for_dynamos_reaper(table: Table) -> None:
+    player = create_player(table, "charlie", "hunter2")
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+
+    token = begin_password_reset(table, player.player_id, now=lambda: start)
+
+    stored = table.get_item(Key={"PK": f"RESET#{hash_token(token)}", "SK": "TOKEN"})["Item"]
+    assert stored["ttl"] == int((start + _RESET_TTL).timestamp())
 
 
 def test_a_single_use_token_never_starts_with_a_dash(table: Table) -> None:
