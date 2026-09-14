@@ -48,7 +48,7 @@ testpaths = ["tests"]
 addopts = "--strict-markers --strict-config -m \"not integration\""
 pythonpath = ["infra"]
 markers = [
-    "integration: needs a real DynamoDB Local via Docker (ROADMAP.md 1.6); run with `-m integration`",
+    "integration: needs Docker - a real DynamoDB Local (ROADMAP.md 1.6) or CDK asset bundling (ROADMAP.md 5.3); run with `-m integration`",
 ]
 
 [tool.ruff]

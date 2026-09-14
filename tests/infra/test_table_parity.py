@@ -6,6 +6,9 @@ against ``describe_time_to_live``, since real DynamoDB reports it separately. Bi
 RETAIN, point-in-time recovery and deletion protection have no shape in common with (or no
 counterpart in) the fixture side and get standalone, template-only assertions instead - see the
 module docstring in ``infra/stack.py``.
+
+Marked ``integration`` since ROADMAP.md 5.3: constructing ``TricksyStack`` now bundles the API
+Lambda's deployment package in Docker as a side effect, which the fast suite must not need.
 """
 
 from __future__ import annotations
@@ -19,6 +22,8 @@ from aws_cdk.assertions import Template
 from mypy_boto3_dynamodb.service_resource import Table
 
 from stack import TricksyStack
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
