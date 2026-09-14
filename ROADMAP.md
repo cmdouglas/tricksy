@@ -940,7 +940,7 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
 - `TOKEN#` bearer items are untouched. They carry `expires_at: None` deliberately (DESIGN.md §6.1:
   a device credential is revoked, not expired), so there is nothing for a reaper to key on.
 
-### 5.3 The API function and the HTTP API
+### 5.3 The API function and the HTTP API — done
 
 - A Python 3.13 arm64 `lambda.Function` on `tricksy.api.lambda_handler.handler`, which has been
   waiting since 2.6. The bundle is built in Docker rather than locally: `fastapi` pulls in
@@ -948,15 +948,37 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
   imports nothing at all on Lambda. `uv export --frozen --no-dev` plus `uv pip install --target`
   inside the runtime image gets the right wheels; Docker is already a prerequisite for
   `pytest -m integration`, so this adds no new tool. The `cli` extra is excluded, which is what
-  that extra exists for.
+  that extra exists for. **Done**: `infra/stack.py`'s `_BUNDLING`/`Code.from_asset` builds the
+  asset from the repo root inside `Runtime.PYTHON_3_13.bundling_image` (the stock CDK
+  runtime-matched build image, not a repo-local Dockerfile or `aws_lambda_python_alpha`), running
+  `uv export --frozen --no-dev --no-emit-project` (the extra flag skips a redundant build/install
+  of the `tricksy` project itself, which the next step's `cp -r src/tricksy` already handles more
+  directly) then `uv pip install --target` then the `cp`. `uv export`'s own default of omitting
+  every extra unless named is what keeps `cli`/`infra` out, matching 5.1's existing precedent
+  rather than adding a new mechanism. One wrinkle discovered only by actually running the
+  bundling in Docker (not visible from reading the roadmap alone): the build container runs as
+  the host's numeric UID with no matching `/etc/passwd` entry, so `HOME` resolves to `/` and uv's
+  default cache dir under it isn't writable - fixed with `BundlingOptions.environment={"UV_CACHE_DIR":
+  "/tmp/uv-cache"}`.
 - Environment: `TRICKSY_TABLE_NAME` set, `TRICKSY_DYNAMODB_ENDPOINT` left unset, since `tricksy.api.deps`
   reads unset as real AWS. IAM through `table.grant_read_write_data`, which covers the GSI.
+  **Done**, exactly as specified.
 - In front of it an API Gateway HTTP API with a `$default` proxy route, and **no API keys**.
-  DESIGN.md §10 still says "wire up API keys" for Phase 2, which auth resolution (§6.1, §12) made
-  obsolete: the credential is a per-device bearer token the app itself checks. This phase deletes
-  that line rather than implementing it.
+  **Done** via the L2 `HttpApi` construct's `default_integration`, which needs no explicit route
+  wiring and has no API-key/usage-plan machinery to begin with (that's a REST API v1 concept) - so
+  "no API keys" falls out of using an HTTP API rather than something suppressed. DESIGN.md §10's
+  "wire up API keys" line had already been corrected to reflect the bearer-token decision by the
+  time this sub-phase landed, so there was no stale line left to delete here.
 - The stack outputs the endpoint URL. That URL is the entire deployment-facing surface of the
-  CLI: `--api-url` or `TRICKSY_API_URL` and nothing else.
+  CLI: `--api-url` or `TRICKSY_API_URL` and nothing else. **Done** via `CfnOutput`, reading
+  `self.http_api.api_endpoint`.
+- `tests/infra/test_api_function.py` is new, following `test_table_parity.py`'s synth-and-inspect
+  pattern: function runtime/architecture/handler, the environment variable set (and
+  `TRICKSY_DYNAMODB_ENDPOINT` absent), the read/write IAM policy, the HTTP API and its `$default`
+  route, no API-key/usage-plan resources, and the `CfnOutput`. Constructing `TricksyStack` now
+  bundles in Docker as a side effect, so this file and `test_table_parity.py` are both marked
+  `@pytest.mark.integration` - the fast suite must not need Docker, and the roadmap text above
+  already anticipated reusing that marker for this.
 
 ### 5.4 The notifier and SES
 
