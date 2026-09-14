@@ -3,7 +3,7 @@
 ``self.table`` is exposed so later sub-phases build onto this same stack instead of a second
 one: 5.2 adds a TTL attribute (``ttl``, matching ``schema.create_table``'s
 ``update_time_to_live`` call), 5.3 adds the API Lambda function below and calls
-``self.table.grant_read_write_data``; 5.4 does the same for a notifier function.
+``self.table.grant_read_write_data``; 5.4 does the same for the notifier function below.
 
 This mirrors ``tricksy.storage.schema.create_table`` by hand rather than importing it, because
 that function is written as literal boto3 kwargs to satisfy boto3-stubs' overloads and cannot be
@@ -12,6 +12,7 @@ splatted into a CDK construct. ``tests/infra/test_table_parity.py`` is what keep
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +28,37 @@ from aws_cdk.aws_dynamodb import (
     StreamViewType,
     Table,
 )
-from aws_cdk.aws_lambda import Architecture, Code, Function, Runtime
+from aws_cdk.aws_iam import PolicyStatement
+from aws_cdk.aws_lambda import Architecture, Code, Function, Runtime, StartingPosition
+from aws_cdk.aws_lambda_event_sources import DynamoEventSource, SqsDlq
+from aws_cdk.aws_ses import EmailIdentity, Identity
+from aws_cdk.aws_sqs import Queue
 from constructs import Construct
+
+#: Env var name shared with ``tricksy.notifications.sender.SES_FROM_ADDRESS_ENV`` - read here at
+#: synth time (to build the SES identity) and passed through verbatim as the notifier function's
+#: own runtime environment variable, so there is one source of truth rather than two.
+_SES_FROM_ADDRESS_ENV = "TRICKSY_SES_FROM_ADDRESS"
+
+#: Synth-time only - comma-separated dogfood recipient addresses to pre-register as SES
+#: identities so the sandbox will accept sending to them. No runtime code reads this: each
+#: message's actual recipient is resolved dynamically from the player's own verified contact
+#: (DESIGN.md §8), so an empty/unset value is valid - it just means no recipient identities exist
+#: yet.
+_SES_DOGFOOD_RECIPIENTS_ENV = "TRICKSY_SES_DOGFOOD_RECIPIENTS"
+
+
+def _require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} is not set")
+    return value
+
+
+def _dogfood_recipients() -> list[str]:
+    raw = os.environ.get(_SES_DOGFOOD_RECIPIENTS_ENV, "")
+    return [address.strip() for address in raw.split(",") if address.strip()]
+
 
 #: Repo root, so the Docker build context (and thus ``pyproject.toml``/``uv.lock``/``src/``) is
 #: available for bundling even though ``cdk synth`` itself runs from ``infra/``.
@@ -119,3 +149,57 @@ class TricksyStack(Stack):
         )
 
         CfnOutput(self, "ApiUrl", value=self.http_api.api_endpoint)
+
+        # A poison record's failure destination (ROADMAP.md 5.4). 14 days, SQS's max, rather than
+        # the 4-day default - the point is giving the operator (5.5's DLQ-depth alarm) time to
+        # investigate before it's lost rather than losing it quickly.
+        self.notifier_dlq = Queue(self, "NotifierDlq", retention_period=Duration.days(14))
+
+        from_address = _require_env(_SES_FROM_ADDRESS_ENV)
+
+        self.notifier_function = Function(
+            self,
+            "NotifierFunction",
+            runtime=Runtime.PYTHON_3_13,
+            architecture=Architecture.ARM_64,
+            handler="tricksy.notifications.handler.lambda_handler",
+            code=lambda_code,
+            environment={
+                "TRICKSY_TABLE_NAME": self.table.table_name,
+                "TRICKSY_EMAIL_SENDER": "ses",
+                _SES_FROM_ADDRESS_ENV: from_address,
+            },
+            # No API Gateway ceiling here; a batch means several SES sends per invocation.
+            timeout=Duration.seconds(60),
+        )
+        self.table.grant_read_write_data(self.notifier_function)
+
+        self.notifier_function.add_event_source(
+            DynamoEventSource(
+                self.table,
+                starting_position=StartingPosition.TRIM_HORIZON,
+                bisect_batch_on_error=True,
+                # Finite, so a record that always throws reaches the DLQ within a bounded number
+                # of retries instead of blocking the shard until DynamoDB Streams' 24h max record
+                # age quietly ages it out. No report_batch_item_failures: 4.5's conditional
+                # notified_version/notified advance already makes a redelivered record a no-op,
+                # so retrying the whole batch is correct and merely wasteful, not incorrect.
+                retry_attempts=3,
+                on_failure=SqsDlq(self.notifier_dlq),
+            )
+        )
+
+        from_address_identity = EmailIdentity(
+            self, "FromAddressIdentity", identity=Identity.email(from_address)
+        )
+        for index, recipient in enumerate(_dogfood_recipients()):
+            EmailIdentity(self, f"DogfoodRecipient{index}", identity=Identity.email(recipient))
+
+        # Each identity still needs a human to click SES's confirmation mail before it can send
+        # or receive (ROADMAP.md 5.4/5.6) - that step is inherently manual, not automated here.
+        self.notifier_function.add_to_role_policy(
+            PolicyStatement(
+                actions=["ses:SendEmail"],
+                resources=[from_address_identity.email_identity_arn],
+            )
+        )
