@@ -1041,19 +1041,51 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
   `test_api_function.py`'s already-correct scope - which also cut the whole `tests/infra/`
   integration run from the 30-second range down to about 14 seconds.
 
-### 5.5 Operations
+### 5.5 Operations — done
 
 Small on purpose: enough to know something broke, and no more.
 
 - Log retention on both functions' log groups. The default is forever, and paying indefinitely to
-  store the logs of a game nobody is playing is the easiest cost mistake available here.
+  store the logs of a game nobody is playing is the easiest cost mistake available here. **Done**:
+  each function gets its own `logs.LogGroup` (`retention=RetentionDays.ONE_MONTH`,
+  `removal_policy=RemovalPolicy.DESTROY` - logs aren't data worth keeping once the stack itself is
+  torn down, unlike the table) passed in via `Function`'s `log_group=` kwarg, the current
+  non-deprecated way to control this (the older `log_retention=` kwarg is a
+  custom-resource-backed legacy path CDK's own docs now steer away from).
 - An SNS topic to the operator's address, with alarms on API function errors, notifier function
   errors, and DLQ depth above zero. Those three cover "the API is down", "notifications stopped"
-  and "a record is poison", which is the whole failure surface at this size.
+  and "a record is poison", which is the whole failure surface at this size. **Done**:
+  `self.alerts_topic` (`sns.Topic`) subscribed via `EmailSubscription`; all three alarms are
+  `<metric>.create_alarm(..., evaluation_periods=1, threshold=1,
+  comparison_operator=GREATER_THAN_OR_EQUAL_TO_THRESHOLD)` wired to it through
+  `Alarm.add_alarm_action(SnsAction(...))` - `self.api_function.metric_errors()`,
+  `self.notifier_function.metric_errors()`, and
+  `self.notifier_dlq.metric_approximate_number_of_messages_visible()`, the last one being exactly
+  the alarm 5.4's own comments already promised against `self.notifier_dlq`. Same privacy
+  consideration 5.4 established for SES addresses applies here too - the repo is public on
+  GitHub, so the operator's address is a new required, synth-time-only `TRICKSY_OPERATOR_EMAIL`
+  env var (`_require_env`, same pattern as `TRICKSY_SES_FROM_ADDRESS`) rather than a literal in
+  source, and deliberately a *different* variable from `TRICKSY_SES_FROM_ADDRESS`: that one is a
+  `noreply@`-style sending identity, not an inbox anyone reads.
 - An AWS Budgets monthly alarm. The cheapest possible guard against a runaway, and the only one
-  that catches a mistake in a service the alarms above do not watch.
+  that catches a mistake in a service the alarms above do not watch. **Done**: a `CfnBudget` -
+  `aws_cdk.aws_budgets` has no L2 construct in this CDK version (confirmed: `dir(aws_budgets)`
+  lists only `Cfn`-prefixed names), so this is the second place in `infra/stack.py` writing raw
+  CloudFormation-shaped properties because no L2 exists, alongside the table/`schema.py`
+  duplication the module docstring already explains. `$20/month` (`_MONTHLY_BUDGET_USD`) is this
+  sub-phase's own concrete choice - ROADMAP.md doesn't pin a number - sized for a
+  `PAY_PER_REQUEST` table and a handful of Lambda invocations during dogfooding; notifies
+  `TRICKSY_OPERATOR_EMAIL` once actual spend reaches 100% of that limit.
 - Deliberately absent: X-Ray, dashboards, a structured-logging framework, custom metrics. They are
   what Phase 7 adds if operating this actually turns out to need them.
+- `tests/infra/test_operations.py` is new, following the established idiom
+  (`pytestmark = pytest.mark.integration`, module-scoped `template` fixture, local
+  `_only_resource` helper): log group count/retention/deletion-policy, the topic and its email
+  subscription, all three alarms checked by actual `Namespace`/`MetricName` rather than just
+  counted (so a wrong metric wouldn't silently pass), and the budget's type/limit/notification/
+  subscriber. `tests/infra/conftest.py`'s `ses_addresses` fixture grew a third fake address,
+  `TRICKSY_OPERATOR_EMAIL`, so every file under `tests/infra/` can still construct `TricksyStack`
+  with no real secret anywhere.
 
 ### 5.6 Configuration and docs
 
