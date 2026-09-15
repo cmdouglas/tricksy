@@ -97,3 +97,60 @@ email to stdout rather than sending it:
 ```bash
 TRICKSY_EMAIL_SENDER=console uv run python -m tricksy.notifications.pump
 ```
+
+## Deployment
+
+The stack (`infra/`, AWS CDK in Python) provisions the table, both Lambda functions, the HTTP
+API, the notifier's DynamoDB Streams trigger and dead-letter queue, SES identities, and the
+operational alarms and budget - see DESIGN.md section 14. There is one stack, one region,
+deployed by hand: no pipeline, no staging environment.
+
+### Prerequisites
+
+- An AWS account, with credentials available to the CDK CLI (`aws configure`, or any of the
+  usual credential sources).
+- The CDK CLI itself: `npm install -g aws-cdk` (a one-time global install; the project's own
+  Python dependencies, including `aws-cdk-lib`, come from the `infra` extra -
+  `uv sync --extra infra`).
+- Docker running locally. The Lambda deployment package is built inside a container so it
+  targets Lambda's Linux/arm64 runtime rather than the host's.
+- `cdk bootstrap`, once per AWS account and region:
+  ```bash
+  cd infra && uv run --extra infra cdk bootstrap
+  ```
+
+### Before the first deploy
+
+`cdk synth`/`cdk deploy` read three environment variables to build SES identities and the
+alarm/budget subscription. None of these are committed to source - this repo is public:
+
+```bash
+export TRICKSY_SES_FROM_ADDRESS=noreply@yourdomain.example       # the sending identity
+export TRICKSY_SES_DOGFOOD_RECIPIENTS=you@example.com,a-friend@example.com  # optional
+export TRICKSY_OPERATOR_EMAIL=you@example.com                    # alarms and budget go here
+```
+
+`TRICKSY_SES_FROM_ADDRESS` and `TRICKSY_OPERATOR_EMAIL` are required - `cdk synth` fails loudly
+if either is unset. `TRICKSY_SES_DOGFOOD_RECIPIENTS` is optional: it only pre-registers addresses
+as SES identities so the SES sandbox will accept sending to them, and can be added in a later
+deploy once you've recruited players.
+
+### Deploy
+
+```bash
+cd infra
+uv run --extra infra cdk deploy
+```
+
+This provisions everything, but SES and SNS both mail a confirmation link to every address you
+gave them - the from-address, each dogfood recipient, and the operator's own address for the
+alerts topic - and each is unusable until a human clicks its link. That's the one step a
+deploy can't do for you: check every inbox above after the first deploy.
+
+`cdk deploy`'s output includes `ApiUrl`, the stack's HTTP API endpoint - point the CLI at it and
+nothing else about using it changes:
+
+```bash
+tricksy --api-url https://<id>.execute-api.<region>.amazonaws.com register ...
+# or: export TRICKSY_API_URL=https://<id>.execute-api.<region>.amazonaws.com
+```

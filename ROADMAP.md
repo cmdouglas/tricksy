@@ -1087,12 +1087,18 @@ Small on purpose: enough to know something broke, and no more.
   `TRICKSY_OPERATOR_EMAIL`, so every file under `tests/infra/` can still construct `TricksyStack`
   with no real secret anywhere.
 
-### 5.6 Configuration and docs
+### 5.6 Configuration and docs — done
 
 README gains a Deployment section: the prerequisites (an AWS account, the CDK CLI, one
 `cdk bootstrap`, Docker), `cdk deploy`, clicking through the SES verification mails, and pointing
 the CLI at the stack's output URL. (An earlier version of this sub-phase also listed three README
 staleness fixes; they have since been made, so the Deployment section is all that is left here.)
+**Done**: added as-specified, plus the three synth-time env vars (`TRICKSY_SES_FROM_ADDRESS`,
+`TRICKSY_SES_DOGFOOD_RECIPIENTS`, `TRICKSY_OPERATOR_EMAIL`) 5.4/5.5 introduced - without them
+`cdk synth` fails before a first-time deployer gets anywhere, so documenting them is what makes
+the section actually usable rather than just naming the command. Also caught in passing: 5.7's
+exit criteria below still said only "the SES address confirmations," but 5.5 added an SNS
+subscription that needs the exact same manual click - fixed to name both.
 
 ### 5.7 The milestone: a real game against real infra
 
@@ -1110,7 +1116,7 @@ at DynamoDB Local, which is what keeps `uv run pytest` free and offline.
 ### Exit criteria
 
 - `cdk deploy` from a clean checkout provisions everything, with no console clicking but the SES
-  address confirmations
+  address and SNS subscription confirmations
 - A full 4-player game plays to `GAME_OVER` against the deployed endpoint, with `--api-url` the
   only change on the client side
 - All three notifications reach real inboxes, across a delay long enough to rule out a warm
