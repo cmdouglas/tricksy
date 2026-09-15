@@ -25,21 +25,26 @@ def template() -> Template:
     return Template.from_stack(stack)
 
 
-def _only_resource(template: Template, resource_type: str) -> Mapping[str, Any]:
-    resources = template.find_resources(resource_type)
+def _only_resource(template: Template, resource_type: str, props: Any = None) -> Mapping[str, Any]:
+    resources = template.find_resources(resource_type, props)
     assert len(resources) == 1
     return next(iter(resources.values()))
 
 
+#: Two Lambda functions exist since ROADMAP.md 5.4 (the notifier is the other one), so these
+#: tests select the API function by its handler rather than assuming it's the only one.
+_API_FUNCTION_PROPS = {"Properties": {"Handler": "tricksy.api.lambda_handler.handler"}}
+
+
 def test_function_runtime_and_architecture(template: Template) -> None:
-    props = _only_resource(template, "AWS::Lambda::Function")["Properties"]
+    props = _only_resource(template, "AWS::Lambda::Function", _API_FUNCTION_PROPS)["Properties"]
     assert props["Runtime"] == "python3.13"
     assert props["Architectures"] == ["arm64"]
     assert props["Handler"] == "tricksy.api.lambda_handler.handler"
 
 
 def test_function_environment(template: Template) -> None:
-    props = _only_resource(template, "AWS::Lambda::Function")["Properties"]
+    props = _only_resource(template, "AWS::Lambda::Function", _API_FUNCTION_PROPS)["Properties"]
     env = props["Environment"]["Variables"]
     assert "TRICKSY_TABLE_NAME" in env
     assert "TRICKSY_DYNAMODB_ENDPOINT" not in env

@@ -9,6 +9,10 @@ module docstring in ``infra/stack.py``.
 
 Marked ``integration`` since ROADMAP.md 5.3: constructing ``TricksyStack`` now bundles the API
 Lambda's deployment package in Docker as a side effect, which the fast suite must not need.
+
+``table_resource`` is module-scoped rather than the plain per-test default: bundling is that same
+Docker side effect, so a function-scoped fixture would redo it once per test in this file
+(ROADMAP.md 5.4 caught this - it was still function-scoped from before any Lambda existed here).
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from stack import TricksyStack
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def table_resource() -> Mapping[str, Any]:
     app = cdk.App()
     stack = TricksyStack(app, "TricksyStack")

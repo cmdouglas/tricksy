@@ -980,29 +980,66 @@ an ISO-8601 **string**, and DynamoDB TTL reads only a Number of epoch seconds, s
   `@pytest.mark.integration` - the fast suite must not need Docker, and the roadmap text above
   already anticipated reusing that marker for this.
 
-### 5.4 The notifier and SES
+### 5.4 The notifier and SES — done
 
 - A second function on `tricksy.notifications.handler.lambda_handler` from the same bundle asset,
   behind a `DynamoEventSource` on the table's stream. This is the real event-source mapping
   `pump.py` has been standing in for since 4.4, calling the same entry point with the same
-  `{"Records": [...]}` shape, which is what that sub-phase built it that way for.
+  `{"Records": [...]}` shape, which is what that sub-phase built it that way for. **Done**:
+  `infra/stack.py`'s `self.notifier_function` reuses the exact same `lambda_code` asset
+  `self.api_function` was built from - no second bundling step - and
+  `self.notifier_function.add_event_source(DynamoEventSource(self.table, ...))` is the real
+  mapping, `starting_position=TRIM_HORIZON` matching `pump.py`'s own local behavior.
 - A retry limit, `bisectBatchOnError`, and an SQS dead-letter queue as the failure destination. A
   stream shard is ordered, so a record that always throws blocks everything behind it until it
-  ages out; the DLQ is what turns that into an alarm (5.5) instead of a silence.
+  ages out; the DLQ is what turns that into an alarm (5.5) instead of a silence. **Done**:
+  `retry_attempts=3` (this sub-phase's own concrete choice for "a retry limit" - finite, so a
+  poison record reaches the DLQ within a bounded number of retries rather than waiting on
+  DynamoDB Streams' 24h max record age), `bisect_batch_on_error=True`, and
+  `on_failure=SqsDlq(self.notifier_dlq)` - a dedicated `Queue` with 14 days' retention (SQS's
+  max), exposed as `self.notifier_dlq` for 5.5's depth alarm to reference. The CloudFormation
+  property is actually named `BisectBatchOnFunctionError`, not `bisectBatchOnError` as written
+  above - caught only by inspecting the synthesized template, not by reading CDK's docs.
 - **No `ReportBatchItemFailures`**, stated so the omission reads as a decision. It would let a
   partial batch retry only its failed records, but 4.5's conditional `notified_version` advance
   already makes a redelivered record a no-op, so a whole-batch retry is correct and merely
   wasteful at a volume of a few emails an hour. It is an optimization available later at the cost
-  of a return value the handler does not currently produce.
+  of a return value the handler does not currently produce. **Done** by omission: CDK only emits
+  `FunctionResponseTypes` on the event source mapping when `report_batch_item_failures` is passed,
+  so simply not passing it is the whole implementation - confirmed absent in the synthesized
+  template rather than assumed.
 - Environment: `TRICKSY_EMAIL_SENDER=ses` and `TRICKSY_SES_FROM_ADDRESS`. The first matters more than it
   looks: `get_sender()` defaults to `console`, which was the right default for a local run (4.1)
   but in Lambda would print every email to CloudWatch and report success. Nothing fails, nothing
   alarms, and no one is notified, which is why 5.7's check is a real inbox and not a green
-  invocation. IAM adds `ses:SendEmail`.
+  invocation. IAM adds `ses:SendEmail`. **Done**, exactly as specified; the `ses:SendEmail` grant
+  is scoped to the from-address identity's own ARN (`EmailIdentity.email_identity_arn`) rather
+  than `resources=["*"]`, since SES's resource-level permission model keys off the sending
+  identity, not the recipient.
 - The SES identities - the from-address and each dogfood recipient, per the sandbox rule above -
   are declared in the stack, but an address identity is only usable once a human clicks the
   confirmation link SES mails it. That step is half-manual by construction, and 5.6 writes it down
-  rather than letting a first deploy appear complete while nothing can send.
+  rather than letting a first deploy appear complete while nothing can send. **Done**, with one
+  addition this sub-phase had to settle that the roadmap text above didn't: hardcoding real email
+  addresses into `infra/stack.py` would commit them to this repo's git history, and the repo is
+  public on GitHub. So neither the from-address nor the recipients are literals in source -
+  `stack.py` reads `TRICKSY_SES_FROM_ADDRESS` (reusing the exact env var name
+  `tricksy.notifications.sender.get_sender()` already reads at runtime, so there's one source of
+  truth for both the identity and the deployed function's own environment variable) and a new,
+  synth-time-only `TRICKSY_SES_DOGFOOD_RECIPIENTS` (comma-separated, optional - deploying before
+  recruiting dogfood players is valid) from `os.environ` at `cdk synth`/`cdk deploy` time. Neither
+  is read by any runtime code; recipients are still resolved dynamically per player at send time
+  (DESIGN.md §8) exactly as before - `TRICKSY_SES_DOGFOOD_RECIPIENTS` only decides which addresses
+  get pre-registered as SES identities so the sandbox will accept sending to them at all.
+  `tests/infra/conftest.py`'s new `ses_addresses` fixture sets fake addresses so every test under
+  `tests/infra/` can still construct `TricksyStack` with no real secret anywhere.
+- Found only by actually running the bundling/synth, not by reading the roadmap text above:
+  constructing `TricksyStack` twice as expensive a Lambda bundle now, and
+  `tests/infra/test_table_parity.py`'s `table_resource` fixture was still function-scoped from
+  before any Lambda existed there, so it was silently re-bundling in Docker seven times (once per
+  test in that file). Fixed in passing - scoped to `module`, matching
+  `test_api_function.py`'s already-correct scope - which also cut the whole `tests/infra/`
+  integration run from the 30-second range down to about 14 seconds.
 
 ### 5.5 Operations
 
