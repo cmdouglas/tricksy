@@ -19,6 +19,9 @@ from typing import Any
 from aws_cdk import BundlingOptions, CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk.aws_apigatewayv2 import HttpApi
 from aws_cdk.aws_apigatewayv2_integrations import HttpLambdaIntegration
+from aws_cdk.aws_budgets import CfnBudget
+from aws_cdk.aws_cloudwatch import ComparisonOperator
+from aws_cdk.aws_cloudwatch_actions import SnsAction
 from aws_cdk.aws_dynamodb import (
     Attribute,
     AttributeType,
@@ -31,7 +34,10 @@ from aws_cdk.aws_dynamodb import (
 from aws_cdk.aws_iam import PolicyStatement
 from aws_cdk.aws_lambda import Architecture, Code, Function, Runtime, StartingPosition
 from aws_cdk.aws_lambda_event_sources import DynamoEventSource, SqsDlq
+from aws_cdk.aws_logs import LogGroup, RetentionDays
 from aws_cdk.aws_ses import EmailIdentity, Identity
+from aws_cdk.aws_sns import Topic
+from aws_cdk.aws_sns_subscriptions import EmailSubscription
 from aws_cdk.aws_sqs import Queue
 from constructs import Construct
 
@@ -46,6 +52,16 @@ _SES_FROM_ADDRESS_ENV = "TRICKSY_SES_FROM_ADDRESS"
 #: (DESIGN.md §8), so an empty/unset value is valid - it just means no recipient identities exist
 #: yet.
 _SES_DOGFOOD_RECIPIENTS_ENV = "TRICKSY_SES_DOGFOOD_RECIPIENTS"
+
+#: Synth-time only - who the alarm/budget SNS topic notifies (ROADMAP.md 5.5). Distinct from
+#: TRICKSY_SES_FROM_ADDRESS on purpose: that's a noreply-style sending identity, not an inbox
+#: anyone reads.
+_OPERATOR_EMAIL_ENV = "TRICKSY_OPERATOR_EMAIL"
+
+#: The cheapest possible guard against a runaway (ROADMAP.md 5.5) - sized for a PAY_PER_REQUEST
+#: table and a handful of Lambda invocations during dogfooding. Easy to raise in source if real
+#: usage says otherwise.
+_MONTHLY_BUDGET_USD = 20
 
 
 def _require_env(name: str) -> str:
@@ -125,6 +141,17 @@ class TricksyStack(Stack):
         # Shared by 5.4's notifier function too - both run from the same deployment package.
         lambda_code = Code.from_asset(str(_REPO_ROOT), exclude=_BUNDLE_EXCLUDES, bundling=_BUNDLING)
 
+        # 30 days rather than the default of forever (ROADMAP.md 5.5) - paying indefinitely to
+        # store the logs of a game nobody is playing is the easiest cost mistake available here.
+        # DESTROY rather than RETAIN, unlike the table: logs aren't data worth keeping once the
+        # stack itself is torn down.
+        api_log_group = LogGroup(
+            self,
+            "ApiFunctionLogGroup",
+            retention=RetentionDays.ONE_MONTH,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         self.api_function = Function(
             self,
             "ApiFunction",
@@ -139,6 +166,7 @@ class TricksyStack(Stack):
             },
             # Under API Gateway HTTP API's 30s hard integration ceiling.
             timeout=Duration.seconds(29),
+            log_group=api_log_group,
         )
         self.table.grant_read_write_data(self.api_function)
 
@@ -151,11 +179,18 @@ class TricksyStack(Stack):
         CfnOutput(self, "ApiUrl", value=self.http_api.api_endpoint)
 
         # A poison record's failure destination (ROADMAP.md 5.4). 14 days, SQS's max, rather than
-        # the 4-day default - the point is giving the operator (5.5's DLQ-depth alarm) time to
-        # investigate before it's lost rather than losing it quickly.
+        # the 4-day default - the point is giving the operator (the DLQ-depth alarm below) time
+        # to investigate before it's lost rather than losing it quickly.
         self.notifier_dlq = Queue(self, "NotifierDlq", retention_period=Duration.days(14))
 
         from_address = _require_env(_SES_FROM_ADDRESS_ENV)
+
+        notifier_log_group = LogGroup(
+            self,
+            "NotifierFunctionLogGroup",
+            retention=RetentionDays.ONE_MONTH,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
 
         self.notifier_function = Function(
             self,
@@ -171,6 +206,7 @@ class TricksyStack(Stack):
             },
             # No API Gateway ceiling here; a batch means several SES sends per invocation.
             timeout=Duration.seconds(60),
+            log_group=notifier_log_group,
         )
         self.table.grant_read_write_data(self.notifier_function)
 
@@ -202,4 +238,54 @@ class TricksyStack(Stack):
                 actions=["ses:SendEmail"],
                 resources=[from_address_identity.email_identity_arn],
             )
+        )
+
+        # Small on purpose (ROADMAP.md 5.5): enough to know something broke, and no more. The
+        # operator's own address, distinct from the SES from-address above - same confirmation-
+        # click caveat, again left for 5.6 to document rather than automate.
+        operator_email = _require_env(_OPERATOR_EMAIL_ENV)
+
+        self.alerts_topic = Topic(self, "AlertsTopic")
+        self.alerts_topic.add_subscription(EmailSubscription(operator_email))
+
+        for alarm_id, metric in (
+            ("ApiFunctionErrorsAlarm", self.api_function.metric_errors()),
+            ("NotifierFunctionErrorsAlarm", self.notifier_function.metric_errors()),
+            (
+                "NotifierDlqDepthAlarm",
+                self.notifier_dlq.metric_approximate_number_of_messages_visible(),
+            ),
+        ):
+            alarm = metric.create_alarm(
+                self,
+                alarm_id,
+                evaluation_periods=1,
+                threshold=1,
+                comparison_operator=ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            )
+            alarm.add_alarm_action(SnsAction(self.alerts_topic))
+
+        CfnBudget(
+            self,
+            "MonthlyBudget",
+            budget=CfnBudget.BudgetDataProperty(
+                budget_type="COST",
+                time_unit="MONTHLY",
+                budget_limit=CfnBudget.SpendProperty(amount=_MONTHLY_BUDGET_USD, unit="USD"),
+            ),
+            notifications_with_subscribers=[
+                CfnBudget.NotificationWithSubscribersProperty(
+                    notification=CfnBudget.NotificationProperty(
+                        notification_type="ACTUAL",
+                        comparison_operator="GREATER_THAN",
+                        threshold=100,
+                        threshold_type="PERCENTAGE",
+                    ),
+                    subscribers=[
+                        CfnBudget.SubscriberProperty(
+                            subscription_type="EMAIL", address=operator_email
+                        )
+                    ],
+                )
+            ],
         )
