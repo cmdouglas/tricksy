@@ -154,3 +154,36 @@ nothing else about using it changes:
 tricksy --api-url https://<id>.execute-api.<region>.amazonaws.com register ...
 # or: export TRICKSY_API_URL=https://<id>.execute-api.<region>.amazonaws.com
 ```
+
+### Least-privilege IAM (optional)
+
+`cdk bootstrap` creates a separate `CloudFormationExecutionRole` that does the actual
+provisioning - by default it's granted `AdministratorAccess`. Two narrower policies live under
+`infra/iam/`:
+
+- [`execution-policy.json`](infra/iam/execution-policy.json) - what `CloudFormationExecutionRole`
+  actually needs to create this stack's resources, scoped by action and, where CloudFormation's
+  auto-generated physical names make it possible (everything prefixed `TricksyStack-`), by
+  resource too.
+- [`deploy-identity-policy.json`](infra/iam/deploy-identity-policy.json) - what your own IAM
+  user/role needs to drive a deploy: assuming CDK's bootstrap roles, the CloudFormation
+  stack-lifecycle calls, and `iam:PassRole` on the execution role. The same for any CDK app, not
+  specific to this stack.
+
+Replace every `ACCOUNT_ID` placeholder, then bootstrap with the narrower execution policy in
+place:
+
+```bash
+aws iam create-policy --policy-name TricksyExecutionPolicy \
+  --policy-document file://infra/iam/execution-policy.json
+
+cd infra && uv run --extra infra cdk bootstrap \
+  --cloudformation-execution-policies arn:aws:iam::ACCOUNT_ID:policy/TricksyExecutionPolicy
+```
+
+`cdk bootstrap` itself still needs broader privilege than either policy grants - it's what
+creates the roles that enforce them, plus the asset S3 bucket, ECR repo and SSM parameter. Run it
+once under an admin-level credential; day-to-day `cdk deploy` afterward only needs the deploy
+identity policy plus the execution role carrying the narrower one. For a one-person account, the
+pragmatic alternative is skipping this section entirely and just using an admin-privileged user
+throughout - reasonable here, as long as it's a deliberate choice rather than an oversight.

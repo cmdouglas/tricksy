@@ -1,0 +1,119 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Dynamo",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable",
+        "dynamodb:DeleteTable", "dynamodb:DescribeTimeToLive", "dynamodb:UpdateTimeToLive",
+        "dynamodb:DescribeContinuousBackups", "dynamodb:UpdateContinuousBackups",
+        "dynamodb:TagResource", "dynamodb:UntagResource", "dynamodb:ListTagsOfResource",
+        "dynamodb:DescribeStream"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:*:ACCOUNT_ID:table/Tricksy",
+        "arn:aws:dynamodb:*:ACCOUNT_ID:table/Tricksy/index/*",
+        "arn:aws:dynamodb:*:ACCOUNT_ID:table/Tricksy/stream/*"
+      ]
+    },
+    {
+      "Sid": "Lambda",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction", "lambda:GetFunction", "lambda:GetFunctionConfiguration",
+        "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:DeleteFunction",
+        "lambda:AddPermission", "lambda:RemovePermission", "lambda:GetPolicy",
+        "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags",
+        "lambda:CreateEventSourceMapping", "lambda:GetEventSourceMapping",
+        "lambda:UpdateEventSourceMapping", "lambda:DeleteEventSourceMapping",
+        "lambda:ListEventSourceMappings"
+      ],
+      "Resource": [
+        "arn:aws:lambda:*:ACCOUNT_ID:function:TricksyStack-*",
+        "arn:aws:lambda:*:ACCOUNT_ID:event-source-mapping:*"
+      ]
+    },
+    {
+      "Sid": "LambdaAssets",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetBucketLocation"],
+      "Resource": [
+        "arn:aws:s3:::cdk-hnb659fds-assets-ACCOUNT_ID-*",
+        "arn:aws:s3:::cdk-hnb659fds-assets-ACCOUNT_ID-*/*"
+      ]
+    },
+    {
+      "Sid": "ExecutionRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:GetRole", "iam:DeleteRole", "iam:UpdateAssumeRolePolicy",
+        "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
+        "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+        "iam:TagRole", "iam:UntagRole", "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::ACCOUNT_ID:role/TricksyStack-*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy", "logs:DescribeLogGroups",
+        "logs:TagResource", "logs:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:logs:*:ACCOUNT_ID:log-group:*TricksyStack*"
+    },
+    {
+      "Sid": "ApiGateway",
+      "Effect": "Allow",
+      "Action": ["apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE"],
+      "Resource": "arn:aws:apigateway:*::/*"
+    },
+    {
+      "Sid": "Sqs",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:CreateQueue", "sqs:GetQueueAttributes", "sqs:SetQueueAttributes",
+        "sqs:DeleteQueue", "sqs:TagQueue", "sqs:UntagQueue", "sqs:ListQueueTags"
+      ],
+      "Resource": "arn:aws:sqs:*:ACCOUNT_ID:TricksyStack-*"
+    },
+    {
+      "Sid": "Sns",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic", "sns:GetTopicAttributes", "sns:SetTopicAttributes", "sns:DeleteTopic",
+        "sns:Subscribe", "sns:Unsubscribe", "sns:GetSubscriptionAttributes", "sns:SetSubscriptionAttributes",
+        "sns:TagResource", "sns:UntagResource", "sns:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:sns:*:ACCOUNT_ID:TricksyStack-*"
+    },
+    {
+      "Sid": "Ses",
+      "Effect": "Allow",
+      "Action": [
+        "ses:CreateEmailIdentity", "ses:GetEmailIdentity", "ses:DeleteEmailIdentity",
+        "ses:PutEmailIdentityDkimSigningAttributes", "ses:PutEmailIdentityMailFromAttributes",
+        "ses:PutEmailIdentityFeedbackAttributes", "ses:TagResource", "ses:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:ses:*:ACCOUNT_ID:identity/*"
+    },
+    {
+      "Sid": "CloudWatchAlarms",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricAlarm", "cloudwatch:DescribeAlarms", "cloudwatch:DeleteAlarms",
+        "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:ListTagsForResource"
+      ],
+      "Resource": "arn:aws:cloudwatch:*:ACCOUNT_ID:alarm:TricksyStack-*"
+    },
+    {
+      "Sid": "Budgets",
+      "Effect": "Allow",
+      "Action": "budgets:*",
+      "Resource": "arn:aws:budgets::ACCOUNT_ID:budget/*"
+    }
+  ]
+}
